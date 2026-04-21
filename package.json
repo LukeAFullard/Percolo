@@ -1,0 +1,34 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LukeAFullard/Percolo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/LukeAFullard/Percolo/issues"
+  },
+  "homepage": "https://github.com/LukeAFullard/Percolo#readme",
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "wink-eng-lite-web-model": "^1.8.1",
+    "wink-nlp": "^2.4.0"
+  }
+}
