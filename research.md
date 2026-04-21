@@ -1,6 +1,6 @@
-**Project Plan: Cribra - Edge-Native BERTopic Pipeline (Browser-First Implementation)**
+**Project Plan: Percolo - Edge-Native BERTopic Pipeline (Browser-First Implementation)**
 
-This project plan outlines the architecture and implementation of **Cribra**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves 100 % fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
+This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves 100 % fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
 
 ## Phase 0: Input & File Handling Layer
 Provide seamless, server-free ingestion of real-world document collections.
@@ -90,22 +90,24 @@ Ensure long-term stability and prevent browser crashes during large-scale proces
 * **Pipeline Orchestration**: Implement progress callbacks via Web Worker `postMessage` for every phase, including live estimated remaining time and progressive loading bar for cold-start model weights.
 * **Cold-Start UI**: Progressive loading bar for first-time model download; instant warm-start via IndexedDB thereafter.
 
-## Phase 8: Guided Topic Modeling & Full BERTopic Feature Parity
-Deliver complete feature parity with the original Python BERTopic library, including semi-supervised guidance and production inference capabilities.
+## Phase 8: Zero-Overhead NLP Analytics & BERTopic Feature Parity
+Deliver complete feature parity with the original Python BERTopic library and expand analytical depth using zero-overhead techniques that reuse existing models and artifacts to strictly adhere to the Cap-and-Tier memory budget.
 
 * **Guided / Seeded Topic Modeling**:
   * Accept optional `seed_topic_list: list[list[str]]` from the user.
   * For each seed list, create a pseudo-document, embed it via transformers.js (WebGPU), and L2-normalize.
   * Compute cosine similarity matrix between all document embeddings and seed embeddings.
   * Use the highest-similarity seed as a soft prior label for HDBSCAN (or fall back to pure HDBSCAN for unseeded documents).
-  * Expose the seeded assignments alongside normal cluster labels.
-* **Multiple Topic Representations** (optional multi-aspect):
-  * Support parallel c-TF-IDF + KeyBERTInspired (via winkNLP + embedding similarity) or other local representation models.
+* **Zero-Shot Classification**:
+  * Allow users to define custom categories. Re-use the existing MiniLM model to embed the category labels and compute cosine similarity against document embeddings to classify documents without loading a second inference model.
+* **Lexical Sentiment & Emotion Analysis**:
+  * Utilize `winkNLP`'s built-in, dictionary-based sentiment analysis (AFINN lexicon) to synchronously score documents (-5 to +5) and aggregate average sentiment scores at the topic cluster level with near-zero memory footprint.
+* **Named Entity Recognition (NER) Filtering**:
+  * Deploy lightweight, WASM-compiled regex/gazetteer engines or `winkNLP`'s custom entity recognizer to extract Dates, Currencies, Emails, and Phone Numbers for cluster-specific filtering.
+* **Automated Cluster Summarization (Extractive)**:
+  * Identify the top representative documents (closest to the topic centroid) and apply TextRank or TF-IDF sentence scoring to extract a 2-sentence summary per topic.
 * **Topic Refinement & Merging**:
   * Implement hierarchical topic reduction and cosine-similarity-based merging of similar topics (ported from BERTopic’s `reduce_topics` logic).
-  * Optional generation of topic hierarchies directly from the UMAP embedding space.
-* **Document-Topic Probabilities**:
-  * Compute soft cluster assignments using HDBSCAN probabilities, enabling probabilistic topic modeling and per-document topic distributions.
 * **Inference & Production Features**:
   * Implement `.transform(new_docs)` using pre-computed topic embeddings (centroids) + cosine similarity.
   * Compute and expose representative documents per topic (top-k closest to centroid).
@@ -114,8 +116,8 @@ Deliver complete feature parity with the original Python BERTopic library, inclu
 ## Phase 9: Visualization & Interactive UI
 Leverage the fully in-memory results for rich, zero-cost interactivity.
 
-* Render interactive **Intertopic Distance Map** (2D scatter plot of UMAP coordinates with topic bubbles, hover details, zoom/pan, and document previews) using Plotly.js or D3.js.
-* Additional views: topic hierarchy tree, per-document topic probabilities heatmap, and representative document list.
+* Render interactive **Intertopic Distance Map** (2D scatter plot of UMAP coordinates with topic bubbles, hover details, zoom/pan, and document previews) using Plotly.js or D3.js. Hover states to include the 2-sentence extractive cluster summary and average sentiment score.
+* Additional views: topic hierarchy tree, per-document topic probabilities heatmap, representative document list, and NER entity filters.
 * Fully client-side and responsive; no external rendering services required.
 
 ## Phase 10: Export & Integration Layer
