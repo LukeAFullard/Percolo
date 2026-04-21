@@ -1,6 +1,6 @@
 **Project Plan: Percolo - Edge-Native BERTopic Pipeline (Browser-First Implementation)**
 
-This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves 100 % fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
+This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves high structural fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Note that exact bit-for-bit reproducibility with the Python reference is bounded by necessary edge adaptations, such as INT4 quantization and WASM Asyncify mechanics. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
 
 ## Phase 0: Input & File Handling Layer
 Provide seamless, server-free ingestion of real-world document collections.
@@ -8,7 +8,7 @@ Provide seamless, server-free ingestion of real-world document collections.
 * **Native File Support**: Drag-and-drop interface + File System Access API for entire local folders (no upload required).
 * **Document Formats**: PDF (via pdf.js), DOCX (via mammoth.js), TXT, Markdown, and plain text.
 * **OCR Fallback**: Optional integration of Tesseract.js (WASM) for scanned/image-based PDFs.
-* **Preprocessing**: Automatic text extraction, basic cleaning, and language auto-detection before passing to the embedding pipeline.
+* **Preprocessing & Chunking**: Automatic text extraction, basic cleaning, and language auto-detection. Implement semantic chunking (e.g., 256-512 tokens) to prevent silent truncation of long-form documents due to transformer context window limits, re-aggregating chunks mathematically before processing.
 * **Progress & Cancellation**: Real-time loading indicators and user-initiated cancellation for large folders.
 
 ## Phase 1: Foundational Environment & Tooling Setup
@@ -32,7 +32,7 @@ Establish the core infrastructure required to handle high-dimensional vector mat
 ## Phase 2: Semantic Embedding Generation (Feature Extraction)
 Transform raw text into dense floating-point vectors using hardware-accelerated transformer models.
 
-* **Hardware Acceleration**: Enable the **WebGPU** backend in transformers.js to achieve 40× to 120× speedups over standard CPU execution.
+* **Hardware Acceleration**: Enable the **WebGPU** backend in transformers.js to achieve significant speedups (theoretically up to 40× to 120× over standard CPU execution, though highly dependent on OS, browser throttling, and specific hardware memory bandwidths).
 * **Model Selection**: Deploy **Xenova/all-MiniLM-L6-v2** (~90 MB) as the default memory-efficient model. Optional support for EmbeddingGemma or 8-bit quantized variants with user toggle for “High Precision” (fp32) mode on desktop.
 * **Multi-Language Support**: Automatic language detection and loading of appropriate MiniLM multilingual variants (100+ languages supported by transformers.js).
 * **Tensor Processing**:
@@ -54,7 +54,7 @@ Partition the reduced embeddings into distinct thematic groups while identifying
 * **WASM Integration & Yielding**: Pass the Float32Array output from UMAP into a WebAssembly-compiled HDBSCAN module to perform complex graph-theory operations (Minimum Spanning Trees) efficiently. **Crucially, the `umap-wasm` and `hdbscan-wasm` modules must be compiled with Emscripten's Asyncify** or manually instrumented to yield to the JavaScript event loop every $N$ iterations. This ensures the Web Worker does not block and can continuously send progress callbacks to the UI.
 * **Probabilities & Outlier Scores**: Leverage HDBSCAN’s `prediction_data` to compute per-document membership probabilities and outlier scores.
 * **Noise Handling**: Automatically label transitional or off-topic documents as noise (label -1).
-* **Low-Memory Fallback**: Automatically switch to MiniBatchKMeans when device constraints exceed ~10 k documents.
+* **Low-Memory Fallback**: Automatically switch to MiniBatchKMeans when dynamic hardware profiling determines that device constraints have been exceeded or when processing at the maximum capacity limit (e.g., beyond 5,000 documents for top-tier desktop).
 
 ## Phase 5: Lexical Extraction & Sparse Matrix Construction
 Transition from mathematical vector space back to interpretable human language.
@@ -124,6 +124,7 @@ Leverage the fully in-memory results for rich, zero-cost interactivity.
 Enable seamless output and reuse of analysis results.
 
 * **One-Click Exports**: JSON (full BERTopic object), CSV (document-topic matrix), Excel, and interactive HTML report (self-contained Plotly).
+* **RAG-Ready Artifacts**: Export vectorized, chunked, and topic-labeled datasets in formats directly compatible with standard local vector databases and LLM frameworks (e.g., LangChain, LlamaIndex) to support Retrieval-Augmented Generation workflows.
 * **Shareable Sessions**: Compressed blob URL export of analysis state (never leaves the device).
 * **Embeddable Component**: Optional React/Vue wrapper + npm package for integration into other web applications.
 * **Domain Adaptation (Semantic Routing)**: Implement Seed-Centroid Weighting instead of compute-heavy in-browser fine-tuning. Users provide "Domain Keywords" to generate "Virtual Centroids", which are injected into the UMAP space as high-weight priors. This pulls document embeddings toward domain-specific clusters, achieving domain adaptation with zero memory overhead.
