@@ -28,6 +28,7 @@
     "vitest": "^4.1.5"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.1.0",
     "wink-eng-lite-web-model": "^1.8.1",
     "wink-nlp": "^2.4.0"
   }
