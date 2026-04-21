@@ -1,11 +1,12 @@
 **Project Plan: Percolo - Edge-Native BERTopic Pipeline (Browser-First Implementation)**
 
-This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves high structural fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Note that exact bit-for-bit reproducibility with the Python reference is bounded by necessary edge adaptations, such as INT4 quantization and WASM Asyncify mechanics. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
+This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves high structural fidelity to the original BERTopic workflow while delivering core feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Note that exact bit-for-bit reproducibility with the Python reference is bounded by necessary edge adaptations, such as INT4 quantization and WASM Asyncify mechanics. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
 
 ## Phase 0: Input & File Handling Layer
 Provide seamless, server-free ingestion of real-world document collections.
 
 * **Native File Support**: Drag-and-drop interface + File System Access API for entire local folders (no upload required).
+* **Streaming & API Ingestion**: Support pulling live JSON feeds or connecting to local databases.
 * **Document Formats**: PDF (via pdf.js), DOCX (via mammoth.js), TXT, Markdown, and plain text.
 * **OCR Fallback**: Optional integration of Tesseract.js (WASM) for scanned/image-based PDFs.
 * **Preprocessing & Chunking**: Automatic text extraction, basic cleaning, and language auto-detection. Implement semantic chunking (e.g., 256-512 tokens) to prevent silent truncation of long-form documents due to transformer context window limits, re-aggregating chunks mathematically before processing.
@@ -17,10 +18,12 @@ Establish the core infrastructure required to handle high-dimensional vector mat
 * **Concurrency Model**: Configure **Web Workers** to offload the entire analytical pipeline, ensuring the main thread remains responsive for UI updates.
 * **Memory Strategy**: Implement **Transferable Objects** to move large ArrayBuffer data between threads via memory ownership transfer rather than structured cloning to prevent memory bloat.
 * **Browser Compatibility & Fallbacks**: Perform feature detection for WebGPU at startup. Use `device: 'webgpu'` in transformers.js when available; gracefully fall back to WASM/CPU backends with clear UI warnings and estimated processing times for lower-end devices (Firefox partial support, Safari limited as of April 2026).
-* **Scalability & Dynamic Cap-and-Tier Processing**: Implement a dynamic hardware profiling system at initialization using `navigator.deviceMemory` and a WebGPU/WebGL stress test. Set strict processing limits to prevent Out-Of-Memory (OOM) crashes:
-  * **Tier 1 (Mobile/Low-RAM):** Hard cap at 500 documents. Enforce INT4 quantization.
-  * **Tier 2 (Mid-range Laptop):** Cap at 2,000 documents. Enforce INT8 quantization.
-  * **Tier 3 (WebGPU Desktop):** Target up to 5,000 documents. Enable FP16/32 support.
+* **Background Tab Resilience**: Handle tab-backgrounding or aggressive OS-level memory management by implementing worker pause/resume semantics and leveraging Service Workers where applicable.
+* **Scalability & Dynamic Cap-and-Tier Processing**: Implement a dynamic hardware profiling system at initialization using `navigator.deviceMemory` and a WebGPU/WebGL stress test. Set strict processing limits based on a **Token Budget** to prevent Out-Of-Memory (OOM) crashes:
+  * **Tier 1 (Mobile/Low-RAM):** Hard cap at 250,000 tokens. Enforce INT4 quantization.
+  * **Tier 2 (Mid-range Laptop):** Cap at 1,000,000 tokens. Enforce INT8 quantization.
+  * **Tier 3 (WebGPU Desktop):** Target up to 2,500,000 tokens. Enable FP16/32 support.
+  * Implement a fast, pre-flight WASM token counter to strictly enforce these budgets before processing begins.
 * **Model Persistence (IndexedDB Caching)**: Leverage transformers.js built-in IndexedDB cache (or custom wrapper) to store quantized ONNX weights locally. Cold start loads weights once; subsequent sessions initialize in milliseconds.
 * **PWA & Offline-First**: Full Progressive Web App support (manifest + service worker) with offline caching of models and previous analysis sessions.
 * **Library Selection**:
@@ -33,7 +36,7 @@ Establish the core infrastructure required to handle high-dimensional vector mat
 Transform raw text into dense floating-point vectors using hardware-accelerated transformer models.
 
 * **Hardware Acceleration**: Enable the **WebGPU** backend in transformers.js to achieve significant speedups (theoretically up to 40× to 120× over standard CPU execution, though highly dependent on OS, browser throttling, and specific hardware memory bandwidths).
-* **Model Selection**: Deploy **Xenova/all-MiniLM-L6-v2** (~90 MB) as the default memory-efficient model. Optional support for EmbeddingGemma or 8-bit quantized variants with user toggle for “High Precision” (fp32) mode on desktop.
+* **Model Selection**: Provide a choice of models to balance speed and semantic quality. Options include **nomic-ai/nomic-embed-text-v1.5** (modern, highly performant), **BGE variants** (e.g., bge-small-en-v1.5), and the legacy **Xenova/all-MiniLM-L6-v2** (~90 MB) for maximum efficiency. Optional support for 8-bit quantized variants with a user toggle for “High Precision” (fp32) mode on desktop.
 * **Multi-Language Support**: Automatic language detection and loading of appropriate MiniLM multilingual variants (100+ languages supported by transformers.js).
 * **Tensor Processing**:
   * Apply **Mean Pooling** to convert token-level embeddings into a single document vector.
@@ -88,6 +91,7 @@ Ensure long-term stability and prevent browser crashes during large-scale proces
 * **WebAssembly Threading**: Tune `ort.env.wasm.numThreads` dynamically based on available hardware cores.
 * **Asynchronous Mapping**: Efficiently manage WebGPU `readBuffer` mapping and use `device.queue.onSubmittedWorkDone()` to synchronize GPU/CPU handoff.
 * **Pipeline Orchestration**: Implement progress callbacks via Web Worker `postMessage` for every phase, including live estimated remaining time and progressive loading bar for cold-start model weights.
+* **Aggressive State Checkpointing**: Checkpoint pipeline state to IndexedDB after every phase (e.g., embeddings, UMAP, HDBSCAN). If a tab crashes or is evicted, the user can refresh and instantly resume from the last completed phase rather than starting over.
 * **Cold-Start UI**: Progressive loading bar for first-time model download; instant warm-start via IndexedDB thereafter.
 
 ## Phase 8: Zero-Overhead NLP Analytics & BERTopic Feature Parity
@@ -126,7 +130,7 @@ Enable seamless output and reuse of analysis results.
 * **One-Click Exports**: JSON (full BERTopic object), CSV (document-topic matrix), Excel, and interactive HTML report (self-contained Plotly).
 * **RAG-Ready Artifacts**: Export vectorized, chunked, and topic-labeled datasets in formats directly compatible with standard local vector databases and LLM frameworks (e.g., LangChain, LlamaIndex) to support Retrieval-Augmented Generation workflows.
 * **Shareable Sessions**: Compressed blob URL export of analysis state (never leaves the device).
-* **Embeddable Component**: Optional React/Vue wrapper + npm package for integration into other web applications.
+* **Decoupled Headless Engine**: Build and publish the core pipeline as a headless, framework-agnostic NPM package first. This ensures compute logic is isolated, testable in CI/CD, and embeddable in enterprise Electron/React apps independent of the Percolo PWA UI.
 * **Domain Adaptation (Semantic Routing)**: Implement Seed-Centroid Weighting instead of compute-heavy in-browser fine-tuning. Users provide "Domain Keywords" to generate "Virtual Centroids", which are injected into the UMAP space as high-weight priors. This pulls document embeddings toward domain-specific clusters, achieving domain adaptation with zero memory overhead.
 
 ## Phase 11: Testing, Validation & Benchmarking
@@ -145,8 +149,8 @@ Validate correctness, performance, and reproducibility before production use.
 | Worker Serialization | Always use Transferable Objects (`postMessage(…, [array.buffer])`) |
 | Quantization Loss | User toggle for fp32 “High Precision” mode on desktop |
 | Memory Pressure at Scale | Vocabulary pruning + low-memory mode + MiniBatchKMeans fallback |
+| Background Tab Eviction | Aggressive state checkpointing to IndexedDB after every phase |
 
-**Privacy & Security**: Zero data leaves the browser by design — ideal for sensitive domains (legal, medical, enterprise, research).  
+**Privacy & Security**: Zero data leaves the browser by design — ideal for sensitive domains (legal, medical, enterprise, research). Telemetry is explicitly excluded to guarantee a truly air-gapped execution environment.
 **Reproducibility Mode**: Single toggle that fixes all random seeds for identical results across runs.  
-**Opt-in Telemetry**: Anonymous usage statistics (corpus size, device specs, processing time) collected only with explicit user consent to inform public benchmarks and future improvements.  
 **Documentation**: One-page “Browser Constraints” reference for maintainers covering feature detection, memory formulas, fallback behavior, and PWA installation instructions.
