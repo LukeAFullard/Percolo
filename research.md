@@ -1,6 +1,6 @@
-**Project Plan: Edge-Native BERTopic Pipeline (Browser-First Implementation)**
+**Project Plan: Cribra - Edge-Native BERTopic Pipeline (Browser-First Implementation)**
 
-This project plan outlines the architecture and implementation of a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves 100 % fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability (comfortable target: 1 000–5 000 documents; graceful handling up to 10 k+), privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
+This project plan outlines the architecture and implementation of **Cribra**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves 100 % fidelity to the original BERTopic workflow while delivering complete feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
 
 ## Phase 0: Input & File Handling Layer
 Provide seamless, server-free ingestion of real-world document collections.
@@ -17,7 +17,10 @@ Establish the core infrastructure required to handle high-dimensional vector mat
 * **Concurrency Model**: Configure **Web Workers** to offload the entire analytical pipeline, ensuring the main thread remains responsive for UI updates.
 * **Memory Strategy**: Implement **Transferable Objects** to move large ArrayBuffer data between threads via memory ownership transfer rather than structured cloning to prevent memory bloat.
 * **Browser Compatibility & Fallbacks**: Perform feature detection for WebGPU at startup. Use `device: 'webgpu'` in transformers.js when available; gracefully fall back to WASM/CPU backends with clear UI warnings and estimated processing times for lower-end devices (Firefox partial support, Safari limited as of April 2026).
-* **Scalability & Progressive Processing**: Support batched embedding (chunks of 512 documents) and streaming of intermediate results to handle larger corpora without out-of-memory crashes. Include a configurable “low-memory mode” that reduces UMAP dimensions or uses approximate HDBSCAN / MiniBatchKMeans fallback.
+* **Scalability & Dynamic Cap-and-Tier Processing**: Implement a dynamic hardware profiling system at initialization using `navigator.deviceMemory` and a WebGPU/WebGL stress test. Set strict processing limits to prevent Out-Of-Memory (OOM) crashes:
+  * **Tier 1 (Mobile/Low-RAM):** Hard cap at 500 documents. Enforce INT4 quantization.
+  * **Tier 2 (Mid-range Laptop):** Cap at 2,000 documents. Enforce INT8 quantization.
+  * **Tier 3 (WebGPU Desktop):** Target up to 5,000 documents. Enable FP16/32 support.
 * **Model Persistence (IndexedDB Caching)**: Leverage transformers.js built-in IndexedDB cache (or custom wrapper) to store quantized ONNX weights locally. Cold start loads weights once; subsequent sessions initialize in milliseconds.
 * **PWA & Offline-First**: Full Progressive Web App support (manifest + service worker) with offline caching of models and previous analysis sessions.
 * **Library Selection**:
@@ -48,7 +51,7 @@ Mitigate the “curse of dimensionality” by projecting embeddings into a lower
 Partition the reduced embeddings into distinct thematic groups while identifying and excluding noise.
 
 * **Clustering Logic**: Implement **HDBSCAN** (primary) to detect arbitrary cluster shapes and variable densities.
-* **WASM Integration**: Pass the Float32Array output from UMAP into a WebAssembly-compiled HDBSCAN module to perform complex graph-theory operations (Minimum Spanning Trees) efficiently.
+* **WASM Integration & Yielding**: Pass the Float32Array output from UMAP into a WebAssembly-compiled HDBSCAN module to perform complex graph-theory operations (Minimum Spanning Trees) efficiently. **Crucially, the `umap-wasm` and `hdbscan-wasm` modules must be compiled with Emscripten's Asyncify** or manually instrumented to yield to the JavaScript event loop every $N$ iterations. This ensures the Web Worker does not block and can continuously send progress callbacks to the UI.
 * **Probabilities & Outlier Scores**: Leverage HDBSCAN’s `prediction_data` to compute per-document membership probabilities and outlier scores.
 * **Noise Handling**: Automatically label transitional or off-topic documents as noise (label -1).
 * **Low-Memory Fallback**: Automatically switch to MiniBatchKMeans when device constraints exceed ~10 k documents.
@@ -121,7 +124,7 @@ Enable seamless output and reuse of analysis results.
 * **One-Click Exports**: JSON (full BERTopic object), CSV (document-topic matrix), Excel, and interactive HTML report (self-contained Plotly).
 * **Shareable Sessions**: Compressed blob URL export of analysis state (never leaves the device).
 * **Embeddable Component**: Optional React/Vue wrapper + npm package for integration into other web applications.
-* **Domain Adaptation**: Optional “Quick Fine-Tune” button using 50–200 user-provided example documents to generate lightweight LoRA-style adapters (runs entirely in-browser).
+* **Domain Adaptation (Semantic Routing)**: Implement Seed-Centroid Weighting instead of compute-heavy in-browser fine-tuning. Users provide "Domain Keywords" to generate "Virtual Centroids", which are injected into the UMAP space as high-weight priors. This pulls document embeddings toward domain-specific clusters, achieving domain adaptation with zero memory overhead.
 
 ## Phase 11: Testing, Validation & Benchmarking
 Validate correctness, performance, and reproducibility before production use.
