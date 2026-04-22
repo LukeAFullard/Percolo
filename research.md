@@ -15,8 +15,8 @@ Provide seamless, server-free ingestion of real-world document collections.
 ## Phase 1: Foundational Environment & Tooling Setup
 Establish the core infrastructure required to handle high-dimensional vector math and heavy graph traversals without blocking the main UI thread.
 
-* **Concurrency Model & Isolation**: Configure **Web Workers** to offload the entire analytical pipeline. To fully leverage high-performance WASM threading and `SharedArrayBuffer`, the deployment environment **must** enforce strict **Cross-Origin Isolation (COOP/COEP)** headers. Fallbacks must be provided for embedded contexts (like iframes) where these headers cannot be set.
-* **Memory Strategy**: Implement **Transferable Objects** to move large ArrayBuffer data between threads via memory ownership transfer to prevent memory bloat, prioritizing this over structured cloning.
+* **Concurrency Model & Isolation**: Configure **Web Workers** to offload the entire analytical pipeline. While strict **Cross-Origin Isolation (COOP/COEP)** headers are preferred for high-performance threading and `SharedArrayBuffer`, a **graceful degradation strategy** must be implemented using standard `postMessage` chunking. This ensures the tool remains fully functional and embeddable in standard, non-isolated web environments (like iframes and enterprise dashboards) without crashing.
+* **Memory Strategy**: Implement **Transferable Objects** to move large ArrayBuffer data between threads via memory ownership transfer to prevent memory bloat, prioritizing this over structured cloning. Monitor the peak memory surge during data handoff between WASM (transformers) and V8 JS heap (UMAP/HDBSCAN).
 * **Browser Compatibility & Fallbacks**: Perform feature detection for WebGPU at startup. Use `device: 'webgpu'` in transformers.js when available; gracefully fall back to WASM/CPU backends with clear UI warnings and estimated processing times for lower-end devices (Firefox partial support, Safari limited as of April 2026).
 * **Background Tab Resilience**: Handle tab-backgrounding or aggressive OS-level memory management by implementing worker pause/resume semantics and leveraging Service Workers where applicable.
 * **Scalability & Dynamic Cap-and-Tier Processing**: Implement a dynamic hardware profiling system at initialization using `navigator.deviceMemory` and a WebGPU/WebGL stress test. Set strict processing limits based on a **Token Budget** to prevent Out-Of-Memory (OOM) crashes:
@@ -28,8 +28,8 @@ Establish the core infrastructure required to handle high-dimensional vector mat
 * **PWA & Offline-First**: Full Progressive Web App support (manifest + service worker) with offline caching of models and previous analysis sessions.
 * **Library Selection**:
   * **Feature Extraction**: transformers.js for transformer-based embeddings.
-  * **Dimensionality Reduction**: umap-wasm (Rust/WASM) for manifold projection.
-  * **Clustering**: hdbscan-wasm (primary) + optional MiniBatchKMeans fallback.
+  * **Dimensionality Reduction**: umap-js for manifold projection.
+  * **Clustering**: hdbscan-ts (primary) + optional MiniBatchKMeans fallback.
   * **Lexical Processing**: winkNLP for high-throughput tokenization.
 
 ## Phase 2: Semantic Embedding Generation (Feature Extraction)
@@ -46,7 +46,7 @@ Transform raw text into dense floating-point vectors using hardware-accelerated 
 Mitigate the “curse of dimensionality” by projecting embeddings into a lower-dimensional manifold (typically 2 to 5 dimensions).
 
 * **Algorithmic Choice**: Utilize **UMAP** (Uniform Manifold Approximation and Projection) to preserve both local density and global semantic structure.
-* **Implementation**: Use umap-wasm instead of pure JavaScript ports to leverage **deterministic initialization** and Rust-based random projection trees for faster nearest-neighbor searches.
+* **Implementation**: Use `umap-js` for manifold projection. Implement custom Web Worker batching (via Promises or chunked processing) to maintain responsiveness, since the library is pure JavaScript/TypeScript.
 * **Reproducibility**: Expose and document a configurable UMAP seed parameter to guarantee identical results across runs.
 * **Optimization**: Execute stochastic gradient descent over hundreds of epochs within the WASM environment to minimize cross-entropy between high and low-dimensional projections.
 
@@ -54,7 +54,7 @@ Mitigate the “curse of dimensionality” by projecting embeddings into a lower
 Partition the reduced embeddings into distinct thematic groups while identifying and excluding noise.
 
 * **Clustering Logic**: Implement **HDBSCAN** (primary) to detect arbitrary cluster shapes and variable densities.
-* **WASM Integration & Yielding**: Pass the Float32Array output from UMAP into a WebAssembly-compiled HDBSCAN module to perform complex graph-theory operations (Minimum Spanning Trees) efficiently. **Crucially, the `umap-wasm` and `hdbscan-wasm` modules must be compiled with Emscripten's Asyncify** or manually instrumented to yield to the JavaScript event loop every $N$ iterations. This ensures the Web Worker does not block and can continuously send progress callbacks to the UI.
+* **JS Integration & Yielding**: Pass the Float32Array output from UMAP into the `hdbscan-ts` module. Custom Web Worker batching and yielding (via Promises or chunked processing) must be implemented to ensure the Web Worker does not block and can continuously send progress callbacks to the UI during complex graph-theory operations (Minimum Spanning Trees).
 * **Probabilities & Outlier Scores**: Leverage HDBSCAN’s `prediction_data` to compute per-document membership probabilities and outlier scores.
 * **Noise Handling**: Automatically label transitional or off-topic documents as noise (label -1).
 * **Low-Memory Fallback**: Automatically switch to MiniBatchKMeans when dynamic hardware profiling determines that device constraints have been exceeded or when processing at the maximum capacity limit (e.g., beyond 5,000 documents for top-tier desktop).
@@ -108,10 +108,9 @@ Deliver complete feature parity with the original Python BERTopic library and ex
   * Utilize `winkNLP`'s built-in, dictionary-based sentiment analysis (AFINN lexicon) to synchronously score documents (-5 to +5) and aggregate average sentiment scores at the topic cluster level with near-zero memory footprint.
 * **Named Entity Recognition (NER) Filtering**:
   * Deploy lightweight, WASM-compiled regex/gazetteer engines or `winkNLP`'s custom entity recognizer to extract Dates, Currencies, Emails, and Phone Numbers for cluster-specific filtering.
-* **Automated Cluster Summarization (Generative & Extractive)**:
+* **Automated Cluster Summarization (Extractive Only)**:
   * Identify the top representative documents (closest to the topic centroid).
-  * **Tier 3 (WebGPU Desktop):** Offer an optional "Generative Summarization" mode. Download and execute a highly quantized micro-LLM (e.g., via WebLLM) to generate concise, human-readable topic descriptions based on representative documents.
-  * **Tier 1 & 2:** Fallback to applying TextRank or TF-IDF sentence scoring to extract a 2-sentence summary per topic.
+  * Apply TextRank or TF-IDF sentence scoring to extract a 2-sentence summary per topic. Generative Summarization (e.g., via micro-LLMs) is explicitly excluded to maintain absolute adherence to the memory budget.
 * **Topic Refinement & Merging**:
   * Implement hierarchical topic reduction and cosine-similarity-based merging of similar topics (ported from BERTopic’s `reduce_topics` logic).
 * **Inference & Production Features**:
@@ -140,6 +139,7 @@ Enable seamless output, reuse of analysis results, and knowledge base evolution.
 Validate correctness, performance, and reproducibility before production use.
 
 * **Golden Dataset Validation**: Use a standardized subset (e.g., 20 Newsgroups) and assert that final topics, top words, and seeded runs match the Python BERTopic reference implementation within a defined tolerance.
+* **Automated Coherence Evaluation**: Implement client-side topic coherence metrics (e.g., NPMI) to validate topic quality dynamically on unseen, user-supplied unstructured data, rather than relying solely on golden datasets.
 * **End-to-End Benchmarking**: Measure performance against server-side BERTopic on identical hardware.
 * **Reproducibility Testing**: Verify that enabling the fixed-seed mode produces bit-identical outputs across browser restarts and devices.
 * **Unit & Integration Tests**: Cover every phase, including fallbacks, memory hygiene, progress reporting, seeded topic modeling, file handling, visualization, and exports.
@@ -149,10 +149,11 @@ Validate correctness, performance, and reproducibility before production use.
 | Risk | Mitigation |
 |------|------------|
 | GPU/CPU Sync Latency | Explicit `device.queue.onSubmittedWorkDone()` before WASM handoff |
-| Worker Serialization | Always use Transferable Objects (`postMessage(…, [array.buffer])`) |
+| Worker Serialization | Always use Transferable Objects (`postMessage(…, [array.buffer])`) and chunked transfers if SharedArrayBuffer is unavailable |
 | Quantization Loss | User toggle for fp32 “High Precision” mode on desktop |
-| Memory Pressure at Scale | Vocabulary pruning + low-memory mode + MiniBatchKMeans fallback |
+| Memory Pressure at Scale | Vocabulary pruning + low-memory mode + MiniBatchKMeans fallback. Be mindful of serialization spikes when passing between transformers.js and umap-js/hdbscan-ts. |
 | Background Tab Eviction | Aggressive state checkpointing to IndexedDB after every phase |
+| Safari/iOS RAM Limits | Implement strict token budgets (e.g., 250k) and fallback CPU execution gracefully when WebGPU/RAM is exceeded (often >1.5GB on iOS) |
 
 **Privacy & Security**: Zero data leaves the browser by design — ideal for sensitive domains (legal, medical, enterprise, research). Telemetry is explicitly excluded to guarantee a truly air-gapped execution environment.
 **Reproducibility Mode**: Single toggle that fixes all random seeds for identical results across runs.  
