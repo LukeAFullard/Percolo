@@ -1,6 +1,6 @@
 **Project Plan: Percolo - Edge-Native BERTopic Pipeline (Browser-First Implementation)**
 
-This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves high structural fidelity to the original BERTopic workflow while delivering core feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Note that exact bit-for-bit reproducibility with the Python reference is bounded by necessary edge adaptations, such as INT4 quantization and WASM Asyncify mechanics. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
+This project plan outlines the architecture and implementation of **Percolo**, a fully edge-native **BERTopic** pipeline. All computational tasks run entirely in the client’s browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript libraries. The design preserves high structural fidelity to the original BERTopic workflow while delivering core feature parity—including guided/seeded topic modeling, seed-word boosting, multiple topic representations, topic reduction, hierarchical topics, document-topic probabilities, production inference (`.transform()`), and interactive visualization. Note that strict reproducibility with the Python reference is bounded by necessary edge adaptations; for example, INT4 quantization on lower-tier devices will inherently introduce a tolerance delta compared to unquantized desktop execution. Progressive batching, IndexedDB model caching, vocabulary pruning, low-memory fallbacks, native file handling, PWA offline support, multi-language adaptation, and rich export capabilities ensure scalability, privacy-first operation, memory stability, and broad device compatibility. The pipeline is production-ready for 2026 web environments and designed for immediate real-world deployment as a privacy-first topic modeling tool.
 
 ## Phase 0: Input & File Handling Layer
 Provide seamless, server-free ingestion of real-world document collections.
@@ -15,8 +15,8 @@ Provide seamless, server-free ingestion of real-world document collections.
 ## Phase 1: Foundational Environment & Tooling Setup
 Establish the core infrastructure required to handle high-dimensional vector math and heavy graph traversals without blocking the main UI thread.
 
-* **Concurrency Model**: Configure **Web Workers** to offload the entire analytical pipeline, ensuring the main thread remains responsive for UI updates.
-* **Memory Strategy**: Implement **Transferable Objects** to move large ArrayBuffer data between threads via memory ownership transfer rather than structured cloning to prevent memory bloat.
+* **Concurrency Model & Isolation**: Configure **Web Workers** to offload the entire analytical pipeline. To fully leverage high-performance WASM threading and `SharedArrayBuffer`, the deployment environment **must** enforce strict **Cross-Origin Isolation (COOP/COEP)** headers. Fallbacks must be provided for embedded contexts (like iframes) where these headers cannot be set.
+* **Memory Strategy**: Implement **Transferable Objects** to move large ArrayBuffer data between threads via memory ownership transfer to prevent memory bloat, prioritizing this over structured cloning.
 * **Browser Compatibility & Fallbacks**: Perform feature detection for WebGPU at startup. Use `device: 'webgpu'` in transformers.js when available; gracefully fall back to WASM/CPU backends with clear UI warnings and estimated processing times for lower-end devices (Firefox partial support, Safari limited as of April 2026).
 * **Background Tab Resilience**: Handle tab-backgrounding or aggressive OS-level memory management by implementing worker pause/resume semantics and leveraging Service Workers where applicable.
 * **Scalability & Dynamic Cap-and-Tier Processing**: Implement a dynamic hardware profiling system at initialization using `navigator.deviceMemory` and a WebGPU/WebGL stress test. Set strict processing limits based on a **Token Budget** to prevent Out-Of-Memory (OOM) crashes:
@@ -94,22 +94,24 @@ Ensure long-term stability and prevent browser crashes during large-scale proces
 * **Aggressive State Checkpointing**: Checkpoint pipeline state to IndexedDB after every phase (e.g., embeddings, UMAP, HDBSCAN). If a tab crashes or is evicted, the user can refresh and instantly resume from the last completed phase rather than starting over.
 * **Cold-Start UI**: Progressive loading bar for first-time model download; instant warm-start via IndexedDB thereafter.
 
-## Phase 8: Zero-Overhead NLP Analytics & BERTopic Feature Parity
-Deliver complete feature parity with the original Python BERTopic library and expand analytical depth using zero-overhead techniques that reuse existing models and artifacts to strictly adhere to the Cap-and-Tier memory budget.
+## Phase 8: Low-Overhead NLP Analytics & BERTopic Feature Parity
+Deliver complete feature parity with the original Python BERTopic library and expand analytical depth using highly optimized techniques. These techniques maximize the reuse of existing models and artifacts to strictly adhere to the Cap-and-Tier memory budget, minimizing computational cost where possible.
 
 * **Guided / Seeded Topic Modeling**:
   * Accept optional `seed_topic_list: list[list[str]]` from the user.
   * For each seed list, create a pseudo-document, embed it via transformers.js (WebGPU), and L2-normalize.
   * Compute cosine similarity matrix between all document embeddings and seed embeddings.
   * Use the highest-similarity seed as a soft prior label for HDBSCAN (or fall back to pure HDBSCAN for unseeded documents).
-* **Zero-Shot Classification**:
+* **Low-Cost Zero-Shot Classification**:
   * Allow users to define custom categories. Re-use the existing MiniLM model to embed the category labels and compute cosine similarity against document embeddings to classify documents without loading a second inference model.
 * **Lexical Sentiment & Emotion Analysis**:
   * Utilize `winkNLP`'s built-in, dictionary-based sentiment analysis (AFINN lexicon) to synchronously score documents (-5 to +5) and aggregate average sentiment scores at the topic cluster level with near-zero memory footprint.
 * **Named Entity Recognition (NER) Filtering**:
   * Deploy lightweight, WASM-compiled regex/gazetteer engines or `winkNLP`'s custom entity recognizer to extract Dates, Currencies, Emails, and Phone Numbers for cluster-specific filtering.
-* **Automated Cluster Summarization (Extractive)**:
-  * Identify the top representative documents (closest to the topic centroid) and apply TextRank or TF-IDF sentence scoring to extract a 2-sentence summary per topic.
+* **Automated Cluster Summarization (Generative & Extractive)**:
+  * Identify the top representative documents (closest to the topic centroid).
+  * **Tier 3 (WebGPU Desktop):** Offer an optional "Generative Summarization" mode. Download and execute a highly quantized micro-LLM (e.g., via WebLLM) to generate concise, human-readable topic descriptions based on representative documents.
+  * **Tier 1 & 2:** Fallback to applying TextRank or TF-IDF sentence scoring to extract a 2-sentence summary per topic.
 * **Topic Refinement & Merging**:
   * Implement hierarchical topic reduction and cosine-similarity-based merging of similar topics (ported from BERTopic’s `reduce_topics` logic).
 * **Inference & Production Features**:
@@ -124,14 +126,15 @@ Leverage the fully in-memory results for rich, zero-cost interactivity.
 * Additional views: topic hierarchy tree, per-document topic probabilities heatmap, representative document list, and NER entity filters.
 * Fully client-side and responsive; no external rendering services required.
 
-## Phase 10: Export & Integration Layer
-Enable seamless output and reuse of analysis results.
+## Phase 10: Export, Integration & Online Updating
+Enable seamless output, reuse of analysis results, and knowledge base evolution.
 
+* **Online / Incremental Updating**: Implement `partial_fit` semantics to allow the incremental addition of new documents to an existing topic model. This prevents redundant compute by mapping new document embeddings into the existing UMAP/HDBSCAN space without requiring a full pipeline restart.
 * **One-Click Exports**: JSON (full BERTopic object), CSV (document-topic matrix), Excel, and interactive HTML report (self-contained Plotly).
 * **RAG-Ready Artifacts**: Export vectorized, chunked, and topic-labeled datasets in formats directly compatible with standard local vector databases and LLM frameworks (e.g., LangChain, LlamaIndex) to support Retrieval-Augmented Generation workflows.
 * **Shareable Sessions**: Compressed blob URL export of analysis state (never leaves the device).
 * **Decoupled Headless Engine**: Build and publish the core pipeline as a headless, framework-agnostic NPM package first. This ensures compute logic is isolated, testable in CI/CD, and embeddable in enterprise Electron/React apps independent of the Percolo PWA UI.
-* **Domain Adaptation (Semantic Routing)**: Implement Seed-Centroid Weighting instead of compute-heavy in-browser fine-tuning. Users provide "Domain Keywords" to generate "Virtual Centroids", which are injected into the UMAP space as high-weight priors. This pulls document embeddings toward domain-specific clusters, achieving domain adaptation with zero memory overhead.
+* **Domain Adaptation (Semantic Routing)**: Implement Seed-Centroid Weighting instead of compute-heavy in-browser fine-tuning. Users provide "Domain Keywords" to generate "Virtual Centroids", which are injected into the UMAP space as high-weight priors. This pulls document embeddings toward domain-specific clusters, achieving domain adaptation with minimal memory overhead.
 
 ## Phase 11: Testing, Validation & Benchmarking
 Validate correctness, performance, and reproducibility before production use.
