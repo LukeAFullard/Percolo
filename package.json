@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.1.0",
+    "hdbscan-ts": "^1.0.17",
     "umap-js": "^1.4.0",
     "wink-eng-lite-web-model": "^1.8.1",
     "wink-nlp": "^2.4.0"
