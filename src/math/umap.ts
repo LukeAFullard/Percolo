@@ -43,6 +43,45 @@ export class UMAPReducer {
   }
 
   /**
+   * Projects high-dimensional vectors into a lower-dimensional manifold asynchronously.
+   * This is crucial for Web Workers to avoid blocking the thread and to send progress
+   * updates back to the main UI.
+   *
+   * @param embeddings A 2D array of high-dimensional vectors
+   * @param options UMAP configuration options
+   * @param onProgress Callback function for epoch progress, returns false to stop
+   * @returns A Promise resolving to a 2D array of reduced vectors
+   */
+  static async reduceAsync(
+    embeddings: number[][],
+    options: UMAPOptions = {},
+    onProgress?: (epochNumber: number) => void | boolean
+  ): Promise<number[][]> {
+    if (!embeddings || embeddings.length === 0) {
+      return [];
+    }
+
+    const {
+      nComponents = 5,
+      nNeighbors = 15,
+      minDist = 0.1,
+      spread = 1.0,
+      random = Math.random
+    } = options;
+
+    const umap = new UMAP({
+      nComponents,
+      nNeighbors,
+      minDist,
+      spread,
+      random
+    });
+
+    const projection = await umap.fitAsync(embeddings, onProgress);
+    return projection;
+  }
+
+  /**
    * A helper to create a pseudo-random number generator from a seed.
    * This ensures reproducibility when requested by the user.
    * Uses a simple Mulberry32 implementation.

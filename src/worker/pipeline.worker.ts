@@ -43,7 +43,17 @@ async function runPipeline(documents: string[]) {
     payload: { phase: 'umap', status: 'running', message: 'Reducing dimensions...' }
   });
 
-  const reducedEmbeddings = UMAPReducer.reduce(embeddings);
+  const nEpochs = 500; // Default number of epochs for UMAP. Might want to pass this down in options.
+  const reducedEmbeddings = await UMAPReducer.reduceAsync(embeddings, {}, (epoch) => {
+    // Report progress periodically to avoid flooding message queue
+    if (epoch % 10 === 0) {
+      const progressPercent = Math.round((epoch / nEpochs) * 100);
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'umap', status: 'running', progress: progressPercent, message: `Reducing dimensions (${epoch}/${nEpochs})...` }
+      });
+    }
+  });
 
   ctx.postMessage({
     type: 'PROGRESS',
