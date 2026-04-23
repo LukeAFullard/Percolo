@@ -7,6 +7,30 @@ describe('UMAPReducer', () => {
     expect(result).toEqual([]);
   });
 
+  it('should handle empty input asynchronously', async () => {
+    const result = await UMAPReducer.reduceAsync([]);
+    expect(result).toEqual([]);
+  });
+
+  it('should reduce dimensions asynchronously and call progress callback', async () => {
+    // Generate some dummy high-dimensional data
+    const embeddings: number[][] = [];
+    for (let i = 0; i < 20; i++) {
+      const vec = new Array(384).fill(0).map(() => Math.random());
+      embeddings.push(vec);
+    }
+
+    let progressCalled = false;
+    const result = await UMAPReducer.reduceAsync(embeddings, { nComponents: 2 }, (epoch) => {
+      progressCalled = true;
+      expect(epoch).toBeGreaterThanOrEqual(0);
+    });
+
+    expect(result.length).toBe(20);
+    expect(result[0].length).toBe(2);
+    expect(progressCalled).toBe(true);
+  });
+
   it('should reduce dimensions correctly', () => {
     // Generate some dummy high-dimensional data
     const embeddings: number[][] = [];
