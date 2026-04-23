@@ -1,12 +1,14 @@
 {
-  "name": "app",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "percolo",
+  "version": "0.1.0",
+  "description": "An edge-native BERTopic pipeline designed to run entirely in the browser using WASM and WebGPU.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "directories": {
     "test": "tests"
   },
   "scripts": {
+    "build": "tsc",
     "test": "vitest run"
   },
   "repository": {
