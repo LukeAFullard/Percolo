@@ -1,9 +1,17 @@
+export interface CTFIDFOptions {
+  seedWords?: string[];
+  seedMultiplier?: number;
+  vocabulary?: string[];
+}
+
 export class CTFIDF {
   static calculate(
     classTermFrequencies: number[][],
     globalTermFrequencies: number[],
-    averageClassSize: number
+    averageClassSize: number,
+    options: CTFIDFOptions = {}
   ): number[][] {
+    const { seedWords = [], seedMultiplier = 1.5, vocabulary = [] } = options;
     const numClasses = classTermFrequencies.length;
     if (numClasses === 0) return [];
 
@@ -25,8 +33,16 @@ export class CTFIDF {
       const classScores: number[] = new Array(numVocab);
 
       for (let x = 0; x < numVocab; x++) {
-        const f_xc = classFrequencies[x];
+        let f_xc = classFrequencies[x];
         const f_x = globalTermFrequencies[x];
+
+        // Apply seed word boosting if applicable
+        if (seedWords.length > 0 && vocabulary.length === numVocab) {
+          const word = vocabulary[x];
+          if (seedWords.includes(word)) {
+            f_xc *= seedMultiplier;
+          }
+        }
 
         const termFreq = f_xc / maxFreqInClass;
         const idf = Math.log(1 + (averageClassSize / (1 + f_x)));
