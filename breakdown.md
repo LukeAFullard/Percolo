@@ -68,18 +68,20 @@ The core mathematical, NLP "headless" engine, and state checkpointing are nearly
 * `SummarizationEngine` (`src/nlp/summarization.ts`) generates extractive cluster summaries via sentence-level TF-IDF.
 * `TopicReduction` (`src/nlp/reduction.ts`) performs hierarchical merging based on centroid cosine similarity.
 * Mathematical utilities (`src/math/similarity.ts`, `src/math/centroids.ts`) for cosine similarity and cluster centroids.
-**Remaining:**
 * Guided / Seeded Topic Modeling (using soft priors for HDBSCAN).
 * Zero-Shot Classification.
+**Remaining:**
+* None (Completed).
 
 ### Phase 9: Visualization & Interactive UI (Not Implemented)
 **Remaining:**
 * The entire frontend UI (Intertopic Distance Map via Plotly.js/D3, topic hierarchy tree, heatmaps, hover states, etc.) is missing. The current project is entirely headless.
 
-### Phase 10: Export, Integration & Online Updating (Not Implemented)
+### Phase 10: Export, Integration & Online Updating (Partially Implemented)
+**Implemented:**
+* Exporting capabilities (`src/io/exporter.ts`) with support for JSON, CSV, and RAG-Ready formats.
+* Online / incremental updating (`src/nlp/incremental.ts`) for `partial_fit` semantic mapping of new documents to existing topics.
 **Remaining:**
-* Online / incremental updating (`partial_fit`).
-* Exporting capabilities (JSON, CSV, Excel, HTML reports, RAG-Ready artifacts).
 * Decoupled Headless Engine (publishing to NPM).
 
 ### Phase 11: Testing, Validation & Benchmarking (Partially Implemented)
