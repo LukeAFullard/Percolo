@@ -2,47 +2,62 @@ import { describe, it, expect } from 'vitest';
 import { ClusteringEngine } from '../src/math/clustering';
 
 describe('ClusteringEngine', () => {
-  it('should handle empty input', () => {
+  it('should handle empty input gracefully', () => {
     const result = ClusteringEngine.cluster([]);
     expect(result.labels).toEqual([]);
     expect(result.probabilities).toEqual([]);
   });
 
-  it('should return noise if dataset is smaller than minClusterSize', () => {
-    // Generate 3 random points
-    const points = [
-      [0.1, 0.2],
-      [0.2, 0.1],
-      [0.15, 0.15]
-    ];
-    // Set minClusterSize to 5, which is larger than the dataset
-    const result = ClusteringEngine.cluster(points, 5);
+  it('should fallback to noise if points < minClusterSize', () => {
+    // 3 points, default minClusterSize is 5
+    const embeddings = [[1, 1], [2, 2], [3, 3]];
+    const result = ClusteringEngine.cluster(embeddings);
 
     expect(result.labels).toEqual([-1, -1, -1]);
-    expect(result.probabilities.length).toBe(3);
+    expect(result.probabilities).toEqual([0, 0, 0]);
   });
 
-  it('should correctly cluster clearly separated dense regions', () => {
-    const cluster1 = Array(15).fill(0).map(() => [Math.random() * 0.1, Math.random() * 0.1]);
-    const cluster2 = Array(15).fill(0).map(() => [10 + Math.random() * 0.1, 10 + Math.random() * 0.1]);
-    const noise = [[5, 5], [4, 6]];
+  it('should cluster normally when points >= minClusterSize', () => {
+      // 10 points grouped tightly into two clusters
+      const embeddings = [
+          [1, 1], [1.1, 1.1], [0.9, 0.9], [1, 1.1], [1.1, 1],
+          [10, 10], [10.1, 10.1], [9.9, 9.9], [10, 10.1], [10.1, 10]
+      ];
 
-    const embeddings = [...cluster1, ...cluster2, ...noise];
+      const result = ClusteringEngine.cluster(embeddings, { minClusterSize: 4 });
 
-    const result = ClusteringEngine.cluster(embeddings, 5);
+      expect(result.labels.length).toBe(10);
+      expect(result.probabilities.length).toBe(10);
 
-    expect(result.labels.length).toBe(32);
-    expect(result.probabilities.length).toBe(32);
+      // Verify that the first 5 are in the same cluster, and the next 5 are in another
+      const cluster1 = result.labels.slice(0, 5);
+      const cluster2 = result.labels.slice(5, 10);
 
-    // The noise points should ideally be labeled as -1
-    const noiseLabel1 = result.labels[30];
-    const noiseLabel2 = result.labels[31];
-    expect(noiseLabel1).toBe(-1);
-    expect(noiseLabel2).toBe(-1);
+      // Check all elements in cluster1 are the same
+      expect(new Set(cluster1).size).toBe(1);
+      expect(new Set(cluster2).size).toBe(1);
 
-    // The two clusters should have distinct, valid labels (e.g., 0 and 1, though order is not guaranteed)
-    const labelSet = new Set(result.labels);
-    expect(labelSet.size).toBeGreaterThanOrEqual(3); // Noise (-1) + at least 2 clusters
-    expect(labelSet.has(-1)).toBe(true);
+      // Check they are distinct clusters
+      expect(cluster1[0]).not.toBe(cluster2[0]);
+  });
+
+  it('should use KMeans fallback when requested', () => {
+      const embeddings = [
+          [1, 1], [1.1, 1.1], [0.9, 0.9], [1, 1.1], [1.1, 1],
+          [10, 10], [10.1, 10.1], [9.9, 9.9], [10, 10.1], [10.1, 10]
+      ];
+
+      const result = ClusteringEngine.cluster(embeddings, { useLowMemoryFallback: true, fallbackK: 2 });
+
+      expect(result.labels.length).toBe(10);
+      // KMeans returns 1.0 probability
+      expect(result.probabilities[0]).toBe(1.0);
+
+      const cluster1 = result.labels.slice(0, 5);
+      const cluster2 = result.labels.slice(5, 10);
+
+      expect(new Set(cluster1).size).toBe(1);
+      expect(new Set(cluster2).size).toBe(1);
+      expect(cluster1[0]).not.toBe(cluster2[0]);
   });
 });
