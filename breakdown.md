@@ -1,10 +1,10 @@
 # Project Progress Analysis: Percolo Edge-Native BERTopic
 
-Based on a detailed comparison between `research.md` and the actual codebase (`src/` and `tests/` directories), here is the status of the project:
+Based on a detailed comparison between `research.md` and the actual codebase (`src/` and `tests/` directories), here is the updated status of the project:
 
-## Overall Completion Estimate: ~45%
+## Overall Completion Estimate: ~75%
 
-The core mathematical and NLP "headless" engine has been built, providing a strong foundation. However, the advanced BERTopic features, the interactive visualization (UI), persistent caching, and export layers have not yet been implemented.
+The core mathematical, NLP "headless" engine, and state checkpointing are nearly complete. What remains is primarily the multi-threading worker synchronization, incremental updating (`partial_fit`), exporting logic, and the entirety of the frontend visualization (UI).
 
 ## Detailed Breakdown by Phase
 
@@ -24,7 +24,6 @@ The core mathematical and NLP "headless" engine has been built, providing a stro
 * Fast WASM-based token counting (using `winkNLP`).
 **Remaining:**
 * COOP/COEP header configuration and robust `SharedArrayBuffer` / `postMessage` graceful degradation handling.
-* Model Persistence (IndexedDB Caching) for ONNX weights.
 * PWA / Service Worker setup (offline support).
 
 ### Phase 2: Semantic Embedding Generation (Implemented)
@@ -39,39 +38,39 @@ The core mathematical and NLP "headless" engine has been built, providing a stro
 **Remaining:**
 * Custom Web Worker batching/yielding for UMAP to avoid blocking the thread and provide progress callbacks during long calculations.
 
-### Phase 4: Density-Based Semantic Clustering (Partially Implemented)
+### Phase 4: Density-Based Semantic Clustering (Implemented)
 **Implemented:**
 * `ClusteringEngine` (`src/math/clustering.ts`) uses `hdbscan-ts` for clustering and extracting noise/probabilities.
+* `KMeansEngine` (`src/math/kmeans.ts`) fallback implemented for low-RAM devices or extreme dataset sizes.
 **Remaining:**
-* Low-memory fallback to `MiniBatchKMeans`.
-* Web Worker yielding/chunking during graph-theory operations.
+* Web Worker yielding/chunking during graph-theory operations for HDBSCAN.
 
 ### Phase 5: Lexical Extraction & Sparse Matrix Construction (Implemented)
 **Implemented:**
 * `LexicalExtractor` (`src/nlp/lexical.ts`) aggregates class documents, tokenizes via `winkNLP`, performs vocabulary pruning (`minDf`), and creates a CSR matrix using `csr-matrix`.
 
-### Phase 6: Topic Representation (c-TF-IDF) (Partially Implemented)
+### Phase 6: Topic Representation (c-TF-IDF) (Implemented)
 **Implemented:**
 * `CTFIDF` (`src/math/ctfidf.ts`) calculates standard class-based TF-IDF and extracts top-K words per cluster.
-**Remaining:**
-* Seed Words Boosting (boosting specific terms before L1 normalization).
+* Seed Words Boosting (boosts specific terms using a multiplier before calculating final scores).
 
-### Phase 7: Memory Hygiene & Pipeline Optimization (Barebones)
+### Phase 7: Memory Hygiene & Pipeline Optimization (Partially Implemented)
 **Implemented:**
 * `dispose()` method on the Embedding pipeline.
+* `PipelineCache` (`src/io/cache.ts`) using IndexedDB for saving and loading pipeline checkpoints to recover from crashes or background tab evictions.
 **Remaining:**
-* Aggressive state checkpointing to IndexedDB after each phase.
-* Precise tracking of tensors to ensure garbage collection.
+* Precise tracking of tensors and matrices to ensure explicit garbage collection throughout the pipeline.
 
-### Phase 8: Low-Overhead NLP Analytics & BERTopic Feature Parity (Barebones)
+### Phase 8: Low-Overhead NLP Analytics & BERTopic Feature Parity (Implemented)
 **Implemented:**
 * `NLPAnalytics` (`src/nlp/analytics.ts`) uses `winkNLP` for basic sentiment scoring and NER (Dates, Emails, Money).
+* `InferenceEngine` (`src/nlp/inference.ts`) maps new documents to existing topics (`.transform()`).
+* `SummarizationEngine` (`src/nlp/summarization.ts`) generates extractive cluster summaries via sentence-level TF-IDF.
+* `TopicReduction` (`src/nlp/reduction.ts`) performs hierarchical merging based on centroid cosine similarity.
+* Mathematical utilities (`src/math/similarity.ts`, `src/math/centroids.ts`) for cosine similarity and cluster centroids.
 **Remaining:**
-* Guided / Seeded Topic Modeling.
+* Guided / Seeded Topic Modeling (using soft priors for HDBSCAN).
 * Zero-Shot Classification.
-* Automated Cluster Summarization (Extractive).
-* Topic Refinement & Merging (Hierarchical reduction).
-* Production Inference (`.transform()`).
 
 ### Phase 9: Visualization & Interactive UI (Not Implemented)
 **Remaining:**
@@ -85,7 +84,7 @@ The core mathematical and NLP "headless" engine has been built, providing a stro
 
 ### Phase 11: Testing, Validation & Benchmarking (Partially Implemented)
 **Implemented:**
-* Basic Vitest suite exists (`npm test` passes 37 tests).
+* Strong Vitest suite exists (`npm test` passes 60 tests covering almost all headless modules).
 * `CoherenceMetrics` (`src/math/coherence.ts`) calculates NPMI topic coherence.
 **Remaining:**
 * Golden Dataset Validation against Python BERTopic.
