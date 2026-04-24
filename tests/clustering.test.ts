@@ -60,4 +60,23 @@ describe('ClusteringEngine', () => {
       expect(new Set(cluster2).size).toBe(1);
       expect(cluster1[0]).not.toBe(cluster2[0]);
   });
+
+  it('should run clusterAsync successfully', async () => {
+    const embeddings = [
+        [1, 1], [1.1, 1.1], [0.9, 0.9], [1, 1.1], [1.1, 1],
+        [10, 10], [10.1, 10.1], [9.9, 9.9], [10, 10.1], [10.1, 10]
+    ];
+    const options = { minClusterSize: 4 };
+    const result = await ClusteringEngine.clusterAsync(embeddings, options);
+
+    expect(result.labels.length).toBe(10);
+    expect(result.probabilities.length).toBe(10);
+
+    const cluster1 = result.labels.slice(0, 5);
+    const cluster2 = result.labels.slice(5, 10);
+
+    expect(new Set(cluster1).size).toBe(1);
+    expect(new Set(cluster2).size).toBe(1);
+    expect(cluster1[0]).not.toBe(cluster2[0]);
+  });
 });

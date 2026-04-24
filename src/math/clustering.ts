@@ -72,4 +72,28 @@ export class ClusteringEngine {
       probabilities
     };
   }
+
+  /**
+   * Asynchronously partitions reduced embeddings.
+   * Wraps the synchronous clustering process in a Promise and yields the event loop
+   * before starting the heavy computation. This helps keep the Web Worker somewhat
+   * responsive to message events (like cancellation or status checks) just before
+   * the intensive clustering phase begins.
+   *
+   * @param embeddings Reduced 2D/5D vectors
+   * @param options Configuration options
+   * @returns A Promise resolving to the ClusteringResult
+   */
+  static async clusterAsync(embeddings: number[][], options: ClusteringOptions = {}): Promise<ClusteringResult> {
+    // Yield the event loop to allow pending messages (e.g. PROGRESS updates) to be processed
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // Execute the heavy synchronous task
+    const result = this.cluster(embeddings, options);
+
+    // Yield again before returning
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    return result;
+  }
 }
