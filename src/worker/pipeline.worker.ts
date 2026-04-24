@@ -24,13 +24,30 @@ ctx.onmessage = async (event: MessageEvent) => {
   }
 };
 
+// Simple deterministic string hash function to generate cache keys
+function generateHash(strings: string[]): string {
+  let hash = 0;
+  const str = strings.join('|');
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+
 async function runPipeline(documents: string[]) {
   let embeddings: number[][];
   let reducedEmbeddings: number[][];
   let clusteringResult: any;
 
+  const docHash = generateHash(documents);
+  const cacheKeyEmbeddings = `${docHash}-embeddings`;
+  const cacheKeyUmap = `${docHash}-umap`;
+  const cacheKeyClustering = `${docHash}-clustering`;
+
   // Phase 2: Embeddings
-  const embeddingsCache = await PipelineCache.loadCheckpoint('embeddings');
+  const embeddingsCache = await PipelineCache.loadCheckpoint(cacheKeyEmbeddings);
   if (embeddingsCache && embeddingsCache.data) {
     ctx.postMessage({
       type: 'PROGRESS',
@@ -44,7 +61,7 @@ async function runPipeline(documents: string[]) {
     });
 
     embeddings = await EmbeddingPipeline.embedTexts(documents);
-    await PipelineCache.saveCheckpoint('embeddings', 'embeddings', embeddings);
+    await PipelineCache.saveCheckpoint(cacheKeyEmbeddings, 'embeddings', embeddings);
 
     ctx.postMessage({
       type: 'PROGRESS',
@@ -52,8 +69,13 @@ async function runPipeline(documents: string[]) {
     });
   }
 
+  // Phase 7: Memory Hygiene
+  // Explicitly dispose of the ONNX inference session to free up GPU and system memory
+  // before proceeding to memory-heavy graph operations (UMAP/HDBSCAN).
+  await EmbeddingPipeline.dispose();
+
   // Phase 3: UMAP
-  const umapCache = await PipelineCache.loadCheckpoint('umap');
+  const umapCache = await PipelineCache.loadCheckpoint(cacheKeyUmap);
   if (umapCache && umapCache.data) {
     ctx.postMessage({
       type: 'PROGRESS',
@@ -78,7 +100,7 @@ async function runPipeline(documents: string[]) {
       }
     });
 
-    await PipelineCache.saveCheckpoint('umap', 'umap', reducedEmbeddings);
+    await PipelineCache.saveCheckpoint(cacheKeyUmap, 'umap', reducedEmbeddings);
 
     ctx.postMessage({
       type: 'PROGRESS',
@@ -87,7 +109,7 @@ async function runPipeline(documents: string[]) {
   }
 
   // Phase 4: Clustering
-  const clusteringCache = await PipelineCache.loadCheckpoint('clustering');
+  const clusteringCache = await PipelineCache.loadCheckpoint(cacheKeyClustering);
   if (clusteringCache && clusteringCache.data) {
     ctx.postMessage({
       type: 'PROGRESS',
@@ -101,7 +123,7 @@ async function runPipeline(documents: string[]) {
     });
 
     clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings);
-    await PipelineCache.saveCheckpoint('clustering', 'clustering', clusteringResult);
+    await PipelineCache.saveCheckpoint(cacheKeyClustering, 'clustering', clusteringResult);
 
     ctx.postMessage({
       type: 'PROGRESS',
