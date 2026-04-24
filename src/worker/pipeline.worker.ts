@@ -66,7 +66,7 @@ async function runPipeline(documents: string[]) {
     payload: { phase: 'clustering', status: 'running', message: 'Clustering documents...' }
   });
 
-  const clusteringResult = ClusteringEngine.cluster(reducedEmbeddings);
+  const clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings);
 
   ctx.postMessage({
     type: 'PROGRESS',
