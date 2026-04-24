@@ -2,9 +2,9 @@
 
 Based on a detailed comparison between `research.md` and the actual codebase (`src/` and `tests/` directories), here is the updated status of the project:
 
-## Overall Completion Estimate: ~75%
+## Overall Completion Estimate: ~85%
 
-The core mathematical, NLP "headless" engine, and state checkpointing are nearly complete. What remains is primarily the multi-threading worker synchronization, incremental updating (`partial_fit`), exporting logic, and the entirety of the frontend visualization (UI).
+The core mathematical, NLP "headless" engine, and state checkpointing are complete, as is the Web Worker yielding and memory hygiene logic. What remains is the frontend visualization (UI), PWA setup, OCR fallback, and end-to-end benchmarking.
 
 ## Detailed Breakdown by Phase
 
@@ -35,31 +35,39 @@ The core mathematical, NLP "headless" engine, and state checkpointing are nearly
 **Implemented:**
 * `UMAPReducer` (`src/math/umap.ts`) uses `umap-js`.
 * Reproducibility achieved via configurable PRNG seeds.
+* Custom Web Worker batching/yielding for UMAP via `fitAsync` to avoid blocking the thread and provide progress callbacks during long calculations.
 **Remaining:**
-* Custom Web Worker batching/yielding for UMAP to avoid blocking the thread and provide progress callbacks during long calculations.
+* None (Completed).
 
 ### Phase 4: Density-Based Semantic Clustering (Implemented)
 **Implemented:**
 * `ClusteringEngine` (`src/math/clustering.ts`) uses `hdbscan-ts` for clustering and extracting noise/probabilities.
 * `KMeansEngine` (`src/math/kmeans.ts`) fallback implemented for low-RAM devices or extreme dataset sizes.
+* Web Worker yielding implemented via `clusterAsync` to allow the worker event loop to process messages around the heavy synchronous clustering phase.
 **Remaining:**
-* Web Worker yielding/chunking during graph-theory operations for HDBSCAN.
+* None (Completed).
 
 ### Phase 5: Lexical Extraction & Sparse Matrix Construction (Implemented)
 **Implemented:**
 * `LexicalExtractor` (`src/nlp/lexical.ts`) aggregates class documents, tokenizes via `winkNLP`, performs vocabulary pruning (`minDf`), and creates a CSR matrix using `csr-matrix`.
+**Remaining:**
+* None (Completed).
 
 ### Phase 6: Topic Representation (c-TF-IDF) (Implemented)
 **Implemented:**
 * `CTFIDF` (`src/math/ctfidf.ts`) calculates standard class-based TF-IDF and extracts top-K words per cluster.
 * Seed Words Boosting (boosts specific terms using a multiplier before calculating final scores).
+**Remaining:**
+* None (Completed).
 
-### Phase 7: Memory Hygiene & Pipeline Optimization (Partially Implemented)
+### Phase 7: Memory Hygiene & Pipeline Optimization (Implemented)
 **Implemented:**
 * `dispose()` method on the Embedding pipeline.
+* Worker orchestration invokes `.dispose()` immediately after embedding generation to eagerly free GPU/system memory before graph operations.
 * `PipelineCache` (`src/io/cache.ts`) using IndexedDB for saving and loading pipeline checkpoints to recover from crashes or background tab evictions.
+* Worker pipeline aggressively caches intermediate states (embeddings, UMAP, clustering) tied to document hashes to skip redundant computation.
 **Remaining:**
-* Precise tracking of tensors and matrices to ensure explicit garbage collection throughout the pipeline.
+* None (Completed).
 
 ### Phase 8: Low-Overhead NLP Analytics & BERTopic Feature Parity (Implemented)
 **Implemented:**
