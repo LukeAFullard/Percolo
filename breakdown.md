@@ -2,28 +2,28 @@
 
 Based on a detailed comparison between `research.md` and the actual codebase (`src/` and `tests/` directories), here is the updated status of the project:
 
-## Overall Completion Estimate: ~85%
+## Overall Completion Estimate: ~90%
 
-The core mathematical, NLP "headless" engine, and state checkpointing are complete, as is the Web Worker yielding and memory hygiene logic. What remains is the frontend visualization (UI), PWA setup, OCR fallback, and end-to-end benchmarking.
+The core mathematical, NLP "headless" engine, and state checkpointing are complete, as is the Web Worker yielding and memory hygiene logic. OCR extraction and Web Worker graceful degradation for transferring large results have also been implemented. What remains is the frontend visualization (UI), PWA setup, and end-to-end benchmarking.
 
 ## Detailed Breakdown by Phase
 
 ### Phase 0: Input & File Handling Layer (Partially Implemented)
 **Implemented:**
-* `FileParser` class (`src/io/fileParser.ts`) supports native extraction of text from `.txt`, `.md`, `.json`, `.pdf` (via `pdfjs-dist`), and `.docx` (via `mammoth`).
+* `FileParser` class (`src/io/fileParser.ts`) supports native extraction of text from `.txt`, `.md`, `.json`, `.pdf` (via `pdfjs-dist`), `.docx` (via `mammoth`), and image-based OCR via `tesseract.js` (`.png`, `.jpg`, `.jpeg`).
 * `DocumentChunker` (`src/nlp/chunker.ts`) supports token-based chunking with overlap using `winkNLP`.
 **Remaining:**
 * Drag-and-drop interface and File System Access API.
 * Real-time loading indicators / cancellation hooks in the UI.
-* OCR Fallback (Tesseract.js).
 
 ### Phase 1: Foundational Environment & Tooling Setup (Partially Implemented)
 **Implemented:**
 * Basic Web Worker orchestration (`src/worker/orchestrator.ts`, `pipeline.worker.ts`).
 * Hardware profiling (`HardwareProfiler` in `src/worker/hardware.ts`) to assign Token Budgets based on device memory.
 * Fast WASM-based token counting (using `winkNLP`).
+* Robust `postMessage` graceful degradation with chunked transfers and reassembly of TypedArrays for environments where `SharedArrayBuffer` (and thus COOP/COEP headers) is unavailable.
 **Remaining:**
-* COOP/COEP header configuration and robust `SharedArrayBuffer` / `postMessage` graceful degradation handling.
+* COOP/COEP header configuration logic / helper files for final deployments.
 * PWA / Service Worker setup (offline support).
 
 ### Phase 2: Semantic Embedding Generation (Implemented)
