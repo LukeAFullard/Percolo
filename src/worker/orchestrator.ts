@@ -35,6 +35,9 @@ export class PipelineOrchestrator {
     this.onProgressCallback = callback;
   }
 
+  // Support for chunked transfers when SharedArrayBuffer is unavailable
+  private chunks: Map<string, any[]> = new Map();
+
   private handleWorkerMessage(event: MessageEvent) {
     const message: WorkerMessage = event.data;
 
@@ -47,6 +50,9 @@ export class PipelineOrchestrator {
       case 'RESULT':
         // Handle final result
         break;
+      case 'CHUNK':
+        this.handleChunk(message.payload);
+        break;
       case 'ERROR':
         if (this.onProgressCallback) {
           this.onProgressCallback({
@@ -56,6 +62,94 @@ export class PipelineOrchestrator {
           });
         }
         break;
+    }
+  }
+
+  private chunkMetadata: Map<string, { labelsIsTyped: boolean, probsIsTyped: boolean, totalLength: number }> = new Map();
+
+  private handleChunk(payload: any) {
+    const { id, chunkIndex, totalChunks, data, labelsIsTyped, probsIsTyped, totalLength } = payload;
+
+    if (!this.chunks.has(id)) {
+      this.chunks.set(id, new Array(totalChunks));
+      this.chunkMetadata.set(id, { labelsIsTyped, probsIsTyped, totalLength });
+    }
+
+    const chunkArray = this.chunks.get(id)!;
+    chunkArray[chunkIndex] = data;
+
+    // Check if all chunks received
+    let complete = true;
+    for (let i = 0; i < totalChunks; i++) {
+      if (chunkArray[i] === undefined) {
+        complete = false;
+        break;
+      }
+    }
+
+    if (complete) {
+      // Reassemble and process
+      const metadata = this.chunkMetadata.get(id)!;
+
+      let reassembledLabels: any;
+      if (metadata.labelsIsTyped && chunkArray.length > 0 && chunkArray[0].labels.constructor) {
+          // Reconstruct TypedArray
+          const TypedArrayConstructor = chunkArray[0].labels.constructor;
+          reassembledLabels = new TypedArrayConstructor(metadata.totalLength);
+          let offset = 0;
+          for (const chunk of chunkArray) {
+              if (chunk.labels.length > 0) {
+                  reassembledLabels.set(chunk.labels, offset);
+                  offset += chunk.labels.length;
+              }
+          }
+      } else {
+          // Reconstruct normal array
+          reassembledLabels = chunkArray.flatMap(chunk => Array.from(chunk.labels || []));
+      }
+
+      let reassembledProbs: any;
+      if (metadata.probsIsTyped && chunkArray.length > 0 && chunkArray[0].probabilities.constructor && chunkArray[0].probabilities.length > 0) {
+          const TypedArrayConstructor = chunkArray[0].probabilities.constructor;
+          // Assuming probabilities length is same as totalLength or matches chunks length
+          const totalProbsLength = chunkArray.reduce((acc, c) => acc + (c.probabilities ? c.probabilities.length : 0), 0);
+          reassembledProbs = new TypedArrayConstructor(totalProbsLength);
+          let offset = 0;
+          for (const chunk of chunkArray) {
+              if (chunk.probabilities && chunk.probabilities.length > 0) {
+                  reassembledProbs.set(chunk.probabilities, offset);
+                  offset += chunk.probabilities.length;
+              }
+          }
+      } else {
+          reassembledProbs = chunkArray.flatMap(chunk => Array.from(chunk.probabilities || []));
+      }
+
+      const reassembled = {
+        labels: reassembledLabels,
+        probabilities: reassembledProbs
+      };
+
+      this.chunks.delete(id);
+      this.chunkMetadata.delete(id);
+
+      // Process the reassembled data (e.g. final result)
+      // Call the callback or handle it based on the id/context
+      if (this.onProgressCallback) {
+        this.onProgressCallback({
+          phase: 'pipeline',
+          status: 'completed',
+          message: 'Chunked data reassembled completely.'
+        });
+      }
+
+      // We could trigger a synthetic RESULT message here
+      this.handleWorkerMessage({
+        data: {
+          type: 'RESULT',
+          payload: reassembled
+        }
+      } as MessageEvent);
     }
   }
 

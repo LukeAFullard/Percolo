@@ -3,6 +3,8 @@ import * as mammoth from 'mammoth';
 // Use the modern build path for pdfjs-dist
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
+import Tesseract from 'tesseract.js';
+
 export interface ParsedDocument {
   filename: string;
   content: string;
@@ -35,6 +37,8 @@ export class FileParser {
         return await this.parsePDFFile(normalizedFile);
       } else if (filename.endsWith('.docx')) {
         return await this.parseDocxFile(normalizedFile);
+      } else if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+        return await this.parseImageFile(normalizedFile);
       } else {
         return {
           filename: file.name,
@@ -112,5 +116,29 @@ export class FileParser {
     const result = await mammoth.extractRawText({ arrayBuffer: file.buffer });
 
     return { filename: file.name, content: result.value.trim() };
+  }
+
+  private static async parseImageFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
+    if (!file.buffer) {
+         throw new Error('Image parsing requires an ArrayBuffer');
+    }
+
+    try {
+      // Pre-check for empty buffer to avoid tesseract worker throwing uncaught exceptions internally
+      if (file.buffer.byteLength === 0) {
+        throw new Error('Image buffer is empty');
+      }
+
+      // Run OCR using Tesseract.js
+      const result = await Tesseract.recognize(
+        new Uint8Array(file.buffer),
+        'eng', // Default to English for now, can be parameterized later
+        { logger: m => {} } // Disable noisy logging for tests/production unless requested
+      );
+
+      return { filename: file.name, content: result.data.text.trim() };
+    } catch (error: any) {
+       throw new Error(`OCR failed: ${error.message || error}`);
+    }
   }
 }

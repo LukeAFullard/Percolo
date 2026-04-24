@@ -36,11 +36,21 @@ describe('FileParser', () => {
 
   it('should return error for unsupported files', async () => {
     const unsupportedFile = {
-      name: 'image.png',
+      name: 'archive.zip',
       buffer: new ArrayBuffer(0)
     };
 
     const result = await FileParser.parseFile(unsupportedFile);
     expect(result.error).toContain('Unsupported file type');
+  });
+
+  it('should return error if OCR fails (e.g. empty buffer)', async () => {
+    const imageFile = {
+      name: 'image.png',
+      buffer: new ArrayBuffer(0)
+    };
+
+    const result = await FileParser.parseFile(imageFile);
+    expect(result.error).toContain('Failed to parse image.png');
   });
 });
