@@ -177,7 +177,7 @@ export class PipelineOrchestrator {
     });
   }
 
-  private runFallbackPipeline(documents: string[]) {
+  private runFallbackPipeline(_documents: string[]) {
       if (this.onProgressCallback) {
           this.onProgressCallback({
               phase: 'initialization',
