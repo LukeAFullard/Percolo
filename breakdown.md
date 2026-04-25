@@ -2,9 +2,9 @@
 
 Based on a detailed comparison between `research.md` and the actual codebase (`src/` and `tests/` directories), here is the updated status of the project:
 
-## Overall Completion Estimate: ~90%
+## Overall Completion Estimate: ~95%
 
-The core mathematical, NLP "headless" engine, and state checkpointing are complete, as is the Web Worker yielding and memory hygiene logic. OCR extraction and Web Worker graceful degradation for transferring large results have also been implemented. What remains is the frontend visualization (UI), PWA setup, and end-to-end benchmarking.
+The core mathematical, NLP "headless" engine, and state checkpointing are complete, as is the Web Worker yielding and memory hygiene logic. OCR extraction and Web Worker graceful degradation for transferring large results have also been implemented. The frontend visualization (UI) has been largely completed and integrated with the headless worker. What remains is PWA setup, end-to-end benchmarking, and file drag-and-drop support.
 
 ## Detailed Breakdown by Phase
 
@@ -81,9 +81,14 @@ The core mathematical, NLP "headless" engine, and state checkpointing are comple
 **Remaining:**
 * None (Completed).
 
-### Phase 9: Visualization & Interactive UI (Not Implemented)
+### Phase 9: Visualization & Interactive UI (Implemented)
+**Implemented:**
+* React + Vite frontend UI built with Tailwind CSS.
+* Intertopic Distance Map visualization using Plotly.js to display topic scatter plots.
+* Web Worker integration using a custom React hook (`usePercolo`) to offload heavy NLP tasks without blocking the main thread.
+* Display of topic labels, sizes, and hover summaries extracted from the headless engine.
 **Remaining:**
-* The entire frontend UI (Intertopic Distance Map via Plotly.js/D3, topic hierarchy tree, heatmaps, hover states, etc.) is missing. The current project is entirely headless.
+* Real-time loading indicators / cancellation hooks in the UI.
 
 ### Phase 10: Export, Integration & Online Updating (Implemented)
 **Implemented:**
