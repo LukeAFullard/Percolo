@@ -1,5 +1,13 @@
 import React from 'react';
-import Plot from 'react-plotly.js';
+// Note: Due to Vite bundling and COEP/COOP constraints, plotly.js is dynamically injected via CDN.
+// We use the any type for Plot to avoid react-plotly.js missing types in strict mode since we bypass standard bundling.
+// In Vite/ES modules, default exports sometimes need .default
+import createPlotlyComponentPkg from 'react-plotly.js/factory';
+const createPlotlyComponent = (createPlotlyComponentPkg as any).default || createPlotlyComponentPkg;
+
+// Try to use the globally loaded Plotly if available
+const Plotly = typeof window !== 'undefined' ? (window as any).Plotly : null;
+const Plot = Plotly ? createPlotlyComponent(Plotly) : () => <div className="p-4 text-center">Loading Plotly...</div>;
 
 interface IntertopicDistanceMapProps {
   umapCoordinates: number[][];
