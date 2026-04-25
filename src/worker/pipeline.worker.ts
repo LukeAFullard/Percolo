@@ -4,12 +4,18 @@ import { EmbeddingPipeline } from '../nlp/embeddings';
 import { UMAPReducer } from '../math/umap';
 import { ClusteringEngine } from '../math/clustering';
 import { PipelineCache } from '../io/cache';
+import { LexicalExtractor } from '../nlp/lexical';
+import { CTFIDF } from '../math/ctfidf';
+import { SummarizationEngine } from '../nlp/summarization';
 
 // Declare standard web worker scope
 const ctx: Worker = self as any;
 
+ctx.postMessage({ type: 'READY' });
+
 ctx.onmessage = async (event: MessageEvent) => {
   const { type, payload } = event.data;
+  if (type === 'PING') return;
 
   if (type === 'START_PIPELINE') {
     try {
@@ -131,10 +137,71 @@ async function runPipeline(documents: string[]) {
     });
   }
 
-  // Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
+    // Phase 5: Lexical Extraction
+  ctx.postMessage({
+    type: 'PROGRESS',
+    payload: { phase: 'lexical', status: 'running', message: 'Extracting vocabulary and terms...' }
+  });
+
+  // We need to reassemble labels into a regular array to use safely with the LexicalExtractor
+  const finalLabels = Array.isArray(clusteringResult.labels) ? clusteringResult.labels : Array.from(clusteringResult.labels);
+  const lexicalResult = LexicalExtractor.extract(documents, finalLabels as number[], { minDf: 2 });
+
+  ctx.postMessage({
+    type: 'PROGRESS',
+    payload: { phase: 'lexical', status: 'completed' }
+  });
+
+  // Phase 6: c-TF-IDF Topic Representation
+  ctx.postMessage({
+    type: 'PROGRESS',
+    payload: { phase: 'ctfidf', status: 'running', message: 'Calculating topic representations...' }
+  });
+
+  // We calculate the sizes and formatted labels
+  const topicSizes = new Array(lexicalResult.uniqueClasses.length).fill(0);
+  for (let i = 0; i < finalLabels.length; i++) {
+    const labelIdx = lexicalResult.uniqueClasses.indexOf(finalLabels[i] as number);
+    if (labelIdx !== -1) {
+      topicSizes[labelIdx]++;
+    }
+  }
+
+  let topWordsPerTopic: any[] = [];
+  let hoverSummaries: string[] = [];
+
+  if (lexicalResult.matrix) {
+    const ctfidfMatrix = CTFIDF.calculate(lexicalResult.matrix.toDense(), lexicalResult.globalTermFrequencies, lexicalResult.averageClassSize);
+    topWordsPerTopic = CTFIDF.extractTopWordsPerClass(ctfidfMatrix, lexicalResult.vocabulary, 5);
+
+    // Generate summaries
+    const classDocumentsMap = new Map<number, string>();
+    for (let i = 0; i < documents.length; i++) {
+        const label = finalLabels[i] as number;
+        classDocumentsMap.set(label, (classDocumentsMap.get(label) || '') + ' ' + documents[i]);
+    }
+    const extractedSummaries = SummarizationEngine.summarizeClusters(classDocumentsMap, 2);
+
+    hoverSummaries = lexicalResult.uniqueClasses.map(label => {
+        const summaryLines = extractedSummaries.get(label) || [];
+        return summaryLines.join(' ');
+    });
+  }
+
+  ctx.postMessage({
+    type: 'PROGRESS',
+    payload: { phase: 'ctfidf', status: 'completed' }
+  });
+
+// Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
   const finalPayload = {
     labels: clusteringResult.labels,
-    probabilities: clusteringResult.probabilities
+    probabilities: clusteringResult.probabilities,
+    topicLabels: topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`),
+    topicSizes: topicSizes,
+    hoverSummaries: hoverSummaries,
+    uniqueClasses: lexicalResult.uniqueClasses,
+    umap: reducedEmbeddings
   };
 
   try {
@@ -182,6 +249,13 @@ function sliceArrayOrView(obj: any, start: number, end: number): any {
 }
 
 function sendChunkedData(id: string, data: any, chunkSize = 1000) {
+  const nonChunkedData = { ...data };
+  delete nonChunkedData.labels;
+  delete nonChunkedData.probabilities;
+  ctx.postMessage({
+    type: 'CHUNK_METADATA',
+    payload: { id: id + '-metadata', data: nonChunkedData }
+  });
   // Check if labels is array or typed array
   if (data.labels && isArrayOrView(data.labels)) {
     if (data.labels.length === 0) {

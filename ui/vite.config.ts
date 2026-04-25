@@ -20,7 +20,10 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  build: {
+    target: 'esnext'
+  },
   optimizeDeps: {
-    include: ['hdbscan-ts', 'idb', 'umap-js']
+    include: ['hdbscan-ts', 'idb', 'umap-js', '@huggingface/transformers', 'wink-nlp', 'wink-eng-lite-web-model', 'csr-matrix']
   }
 })

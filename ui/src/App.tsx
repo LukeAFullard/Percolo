@@ -155,20 +155,21 @@ function App() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
                 <div className="lg:col-span-2 h-full">
                   <IntertopicDistanceMap
-                    umapCoordinates={results?.umap || (activeTab === "visualize" ? mockUmap : null)}
-                    topicLabels={processLabels(results?.labels) || mockLabels}
-                    topicSizes={results?.sizes || mockSizes}
+                    umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
+                    topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                    topicSizes={(results?.topicSizes as number[]) || mockSizes}
+                    hoverSummaries={(results?.hoverSummaries as string[])}
                   />
                 </div>
                 <div className="flex flex-col gap-6 h-full">
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 overflow-auto">
                     <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-200">Discovered Topics</h3>
                     <div className="space-y-3">
-                      {(processLabels(results?.labels) || mockLabels).map((label: string, i: number) => (
+                      {((results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels).map((label: string, i: number) => (
                         <div key={i} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-100 dark:border-slate-700">
                           <div className="font-medium">{label}</div>
                           <div className="text-xs text-slate-500 mt-1">
-                            Size: {(results?.sizes || mockSizes)[i]} documents
+                            Size: {((results?.topicSizes as number[]) || mockSizes)[i]} documents
                           </div>
                         </div>
                       ))}
