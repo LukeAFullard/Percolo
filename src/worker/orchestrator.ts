@@ -28,6 +28,13 @@ export class PipelineOrchestrator {
 
       this.worker.onmessage = this.handleWorkerMessage.bind(this);
       this.worker.onerror = this.handleWorkerError.bind(this);
+
+      // Vite worker initialization safety fallback
+      setTimeout(() => {
+          if (this.worker && this.onProgressCallback) {
+             this.worker.postMessage({ type: 'PING' });
+          }
+      }, 100);
     }
   }
 
@@ -55,6 +62,9 @@ export class PipelineOrchestrator {
             payload: message.payload
           } as any);
         }
+        break;
+      case 'CHUNK_METADATA':
+        this.chunks.set(message.payload.id, message.payload.data);
         break;
       case 'CHUNK':
         this.handleChunk(message.payload);
@@ -131,12 +141,15 @@ export class PipelineOrchestrator {
           reassembledProbs = chunkArray.flatMap(chunk => Array.from(chunk.probabilities || []));
       }
 
-      const reassembled = {
+      const metadataForReassembly = this.chunks.get(id + '-metadata') || {};
+      // Support full payload reassembly including ui specific objects
+      const reassembled = Object.assign({}, metadataForReassembly, {
         labels: reassembledLabels,
         probabilities: reassembledProbs
-      };
+      });
 
       this.chunks.delete(id);
+      this.chunks.delete(id + '-metadata');
       this.chunkMetadata.delete(id);
 
       // Process the reassembled data (e.g. final result)
@@ -164,7 +177,7 @@ export class PipelineOrchestrator {
       this.onProgressCallback({
         phase: 'pipeline',
         status: 'error',
-        message: error.message
+        message: error.message || 'Worker initialization failed (e.g. cross-origin/MIME issue)'
       });
     }
   }

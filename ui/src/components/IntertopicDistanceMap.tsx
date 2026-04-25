@@ -7,7 +7,7 @@ const createPlotlyComponent = (createPlotlyComponentPkg as any).default || creat
 
 // Try to use the globally loaded Plotly if available
 const Plotly = typeof window !== 'undefined' ? (window as any).Plotly : null;
-const Plot = Plotly ? createPlotlyComponent(Plotly) : () => <div className="p-4 text-center">Loading Plotly...</div>;
+const Plot = Plotly ? (createPlotlyComponent as (...args: unknown[]) => React.ElementType)(Plotly) : () => <div className="p-4 text-center">Loading Plotly...</div>;
 
 interface IntertopicDistanceMapProps {
   umapCoordinates: number[][];
