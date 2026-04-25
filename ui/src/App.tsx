@@ -10,7 +10,22 @@ function App() {
     "Another text discussing the stock market, trading, and finance economics.",
     "The weather today is sunny with a chance of rain in the late afternoon.",
     "Deep learning neural networks require significant computational resources.",
-    "Investment strategies often involve diversifying a portfolio across multiple assets."
+    "Investment strategies often involve diversifying a portfolio across multiple assets.",
+    "Artificial intelligence is transforming the way we work.",
+    "Finance is a vast field dealing with money and investments.",
+    "Machine learning models need a lot of data to train effectively.",
+    "Trading algorithms can execute millions of trades per second.",
+    "Rainfall is expected to increase over the weekend.",
+    "The computational power required for AI is growing exponentially.",
+    "Stock market indices reached an all-time high yesterday.",
+    "Sunny days make people feel more energetic.",
+    "Neural networks are inspired by the human brain.",
+    "Portfolio diversification reduces investment risk.",
+    "Deep learning has achieved state-of-the-art results in computer vision.",
+    "Economic indicators show a positive trend for the next quarter.",
+    "Weather forecasting has become more accurate with advanced models.",
+    "Natural language processing is a key component of AI.",
+    "Financial markets are influenced by global events."
   ]);
   const [inputText, setInputText] = React.useState(docs.join('\n\n'));
 

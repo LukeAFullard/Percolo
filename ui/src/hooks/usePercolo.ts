@@ -24,6 +24,7 @@ export function usePercolo() {
         } else if (prog.phase === 'result' && prog.status === 'completed') {
           // Store actual payload in results
           setResults((prog as any).payload);
+          setIsProcessing(false);
         } else if (prog.status === 'error') {
           setIsProcessing(false);
           setError(prog.message || 'An error occurred during processing');

@@ -12,6 +12,9 @@ export default defineConfig({
   },
   plugins: [react(), tailwindcss()],
   server: {
+    fs: {
+      allow: ['..']
+    },
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
