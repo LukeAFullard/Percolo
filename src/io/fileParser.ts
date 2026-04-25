@@ -131,6 +131,7 @@ export class FileParser {
 
       // Run OCR using Tesseract.js
       const result = await Tesseract.recognize(
+        // @ts-ignore
         new Uint8Array(file.buffer),
         'eng', // Default to English for now, can be parameterized later
         { logger: m => {} } // Disable noisy logging for tests/production unless requested

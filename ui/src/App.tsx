@@ -28,6 +28,15 @@ function App() {
   const mockLabels = ["Topic 0: AI/ML", "Topic 1: Finance", "Topic 2: Weather"];
   const mockSizes = [50, 45, 15];
 
+  // Transform array buffer labels into strings for plotting
+  const processLabels = (labels: any) => {
+      if (!labels) return null;
+      if (ArrayBuffer.isView(labels) || Array.isArray(labels)) {
+         return Array.from(labels as Iterable<any>).map(l => `Topic ${l}`);
+      }
+      return labels;
+  };
+
   return (
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans">
       {/* Sidebar */}
@@ -146,8 +155,8 @@ function App() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
                 <div className="lg:col-span-2 h-full">
                   <IntertopicDistanceMap
-                    umapCoordinates={results?.umap || mockUmap}
-                    topicLabels={results?.labels || mockLabels}
+                    umapCoordinates={results?.umap || (activeTab === "visualize" ? mockUmap : null)}
+                    topicLabels={processLabels(results?.labels) || mockLabels}
                     topicSizes={results?.sizes || mockSizes}
                   />
                 </div>
@@ -155,7 +164,7 @@ function App() {
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 overflow-auto">
                     <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-200">Discovered Topics</h3>
                     <div className="space-y-3">
-                      {(results?.labels || mockLabels).map((label: string, i: number) => (
+                      {(processLabels(results?.labels) || mockLabels).map((label: string, i: number) => (
                         <div key={i} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-100 dark:border-slate-700">
                           <div className="font-medium">{label}</div>
                           <div className="text-xs text-slate-500 mt-1">

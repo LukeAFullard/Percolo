@@ -48,7 +48,13 @@ export class PipelineOrchestrator {
         }
         break;
       case 'RESULT':
-        // Handle final result
+        if (this.onProgressCallback) {
+          this.onProgressCallback({
+            phase: 'result',
+            status: 'completed',
+            payload: message.payload
+          } as any);
+        }
         break;
       case 'CHUNK':
         this.handleChunk(message.payload);
