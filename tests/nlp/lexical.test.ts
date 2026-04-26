@@ -78,4 +78,22 @@ describe('LexicalExtractor', () => {
     expect(result.matrix).toBeNull();
     expect(result.vocabulary.length).toBe(0);
   });
+
+  it('should support n-gram generation', () => {
+    const documents = [
+      "Artificial intelligence is amazing.",
+      "Artificial intelligence will change everything.",
+    ];
+    const labels = [0, 0];
+
+    // Request unigrams and bigrams
+    const result = LexicalExtractor.extract(documents, labels, { minDf: 1, ngramRange: [1, 2] });
+
+    expect(result.vocabulary).toContain('artificial');
+    expect(result.vocabulary).toContain('intelligence');
+    expect(result.vocabulary).toContain('artificial intelligence');
+
+    // Check that it pruned stop words before creating bigrams
+    expect(result.vocabulary).not.toContain('is amazing');
+  });
 });
