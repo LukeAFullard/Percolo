@@ -7,6 +7,7 @@ const its = nlp.its;
 
 export interface LexicalExtractionOptions {
   minDf?: number; // Minimum document frequency for vocabulary pruning (default 2)
+  posFilter?: string[]; // Allowed POS tags (e.g., ['NOUN', 'ADJ']). If empty, all words allowed.
 }
 
 export interface LexicalResult {
@@ -29,6 +30,7 @@ export class LexicalExtractor {
    */
   static extract(documents: string[], labels: number[], options: LexicalExtractionOptions = {}): LexicalResult {
     const minDf = options.minDf !== undefined ? options.minDf : 2;
+    const posFilter = options.posFilter || [];
 
     if (documents.length === 0 || labels.length === 0 || documents.length !== labels.length) {
       return {
@@ -69,7 +71,14 @@ export class LexicalExtractor {
       // Extract tokens, remove punctuation, remove stop words
       // Optionally extract bigrams here, but sticking to unigrams as default for now
       const tokens = doc.tokens()
-        .filter((t: any) => t.out(its.type) === 'word' && !t.out(its.stopWordFlag))
+        .filter((t: any) => {
+           if (t.out(its.type) !== 'word' || t.out(its.stopWordFlag)) return false;
+           if (posFilter.length > 0) {
+               const pos = t.out(its.pos);
+               if (!posFilter.includes(pos)) return false;
+           }
+           return true;
+        })
         .out(its.normal);
 
       const termCountsForClass = new Map<string, number>();

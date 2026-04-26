@@ -49,6 +49,30 @@ describe('LexicalExtractor', () => {
     expect(result.vocabulary).not.toContain('grape');
   });
 
+  it('should filter vocabulary by POS tags when posFilter is provided', () => {
+    const documents = [
+      "He drives his car.", // car (NOUN), drives (VERB)
+      "The beautiful flowers are blooming gently." // flowers (NOUN), beautiful (ADJ), blooming (VERB), gently (ADV)
+    ];
+    const labels = [0, 1];
+
+    // minDf = 1, filter for NOUN only
+    const resultNoun = LexicalExtractor.extract(documents, labels, { minDf: 1, posFilter: ['NOUN'] });
+    expect(resultNoun.vocabulary).toContain('car');
+    // For this specific POS combo wink-nlp output shows "flowers" instead of "flower"
+    expect(resultNoun.vocabulary).toContain('flowers');
+    expect(resultNoun.vocabulary).not.toContain('beautiful');
+    expect(resultNoun.vocabulary).not.toContain('drives');
+    expect(resultNoun.vocabulary).not.toContain('gently');
+
+    // Filter for ADJ only
+    const resultAdj = LexicalExtractor.extract(documents, labels, { minDf: 1, posFilter: ['ADJ'] });
+    expect(resultAdj.vocabulary).toContain('beautiful');
+    expect(resultAdj.vocabulary).not.toContain('car');
+    expect(resultAdj.vocabulary).not.toContain('flower');
+    expect(resultAdj.vocabulary).not.toContain('drives');
+  });
+
   it('should handle empty inputs gracefully', () => {
     const result = LexicalExtractor.extract([], []);
     expect(result.matrix).toBeNull();
