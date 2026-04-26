@@ -14,7 +14,11 @@ function App() {
   const [settings, setSettings] = React.useState({
     seedWords: '',
     useGenerativeSummarization: false,
-    redactPII: false
+    redactPII: false,
+    zeroShotCategories: '',
+    tgtLang: '',
+    runABSA: false,
+    useKeyBERT: false
   });
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
@@ -192,10 +196,19 @@ function App() {
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
+    const zeroShotList = settings.zeroShotCategories
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
     const pipelineConfig = {
       seedWords: seedWordsList.length > 0 ? [seedWordsList] : undefined, // Array of arrays as per API
       useGenerativeSummarization: settings.useGenerativeSummarization,
-      redactPII: settings.redactPII
+      redactPII: settings.redactPII,
+      zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
+      tgtLang: settings.tgtLang.trim() || undefined,
+      runABSA: settings.runABSA,
+      useKeyBERT: settings.useKeyBERT
     };
 
     runPipeline(documents, pipelineConfig);
@@ -409,6 +422,19 @@ function App() {
                   />
                 </div>
 
+                {/* Zero-Shot Classification */}
+                <div>
+                  <h3 className="text-lg font-medium mb-1">Zero-Shot Classification</h3>
+                  <p className="text-sm text-slate-500 mb-3">Provide comma-separated categories to bypass auto-discovery and strictly classify documents into these topics.</p>
+                  <input
+                    type="text"
+                    value={settings.zeroShotCategories}
+                    onChange={(e) => setSettings(prev => ({ ...prev, zeroShotCategories: e.target.value }))}
+                    placeholder="e.g., Sports, Politics, Technology..."
+                    className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
                 <hr className="border-slate-200 dark:border-slate-700" />
 
                 {/* Summarization Mode */}
@@ -439,21 +465,61 @@ function App() {
 
                 <hr className="border-slate-200 dark:border-slate-700" />
 
-                {/* PII Redaction */}
+                {/* Advanced Output Features */}
                 <div>
-                  <h3 className="text-lg font-medium mb-1">Data Privacy</h3>
-                  <label className="flex items-start gap-3 cursor-pointer mt-3">
-                    <input
-                      type="checkbox"
-                      checked={settings.redactPII}
-                      onChange={(e) => setSettings(prev => ({ ...prev, redactPII: e.target.checked }))}
-                      className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                    />
-                    <div>
-                      <span className="block font-medium">Enable Automated PII Redaction</span>
-                      <span className="block text-sm text-slate-500">Automatically masks emails, URLs, and phone numbers before analysis.</span>
+                  <h3 className="text-lg font-medium mb-4">Advanced NLP Features</h3>
+                  <div className="space-y-4">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.useKeyBERT}
+                        onChange={(e) => setSettings(prev => ({ ...prev, useKeyBERT: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Extract Keyphrases (KeyBERT)</span>
+                        <span className="block text-sm text-slate-500">Uses embeddings to extract highly representative multi-word concepts.</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.runABSA}
+                        onChange={(e) => setSettings(prev => ({ ...prev, runABSA: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Aspect-Based Sentiment Analysis (ABSA)</span>
+                        <span className="block text-sm text-slate-500">Auto-extracts noun-phrases and scores sentiment specific to those aspects.</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.redactPII}
+                        onChange={(e) => setSettings(prev => ({ ...prev, redactPII: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Data Privacy: PII Redaction</span>
+                        <span className="block text-sm text-slate-500">Automatically masks emails, URLs, and phone numbers before analysis.</span>
+                      </div>
+                    </label>
+
+                    <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cross-Lingual Target Language (FLORES-200 format)</label>
+                        <input
+                            type="text"
+                            value={settings.tgtLang}
+                            onChange={(e) => setSettings(prev => ({ ...prev, tgtLang: e.target.value }))}
+                            placeholder="e.g., eng_Latn, fra_Latn"
+                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Leave blank to disable translation.</p>
                     </div>
-                  </label>
+                  </div>
                 </div>
 
               </div>
