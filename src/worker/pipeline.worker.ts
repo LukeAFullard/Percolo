@@ -264,7 +264,7 @@ async function runPipeline(documents: string[], config?: any) {
   });
 
 // Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
-  const finalPayload = {
+  const finalPayload: any = {
     labels: clusteringResult.labels,
     probabilities: clusteringResult.probabilities,
     topicLabels: topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`),
@@ -275,6 +275,19 @@ async function runPipeline(documents: string[], config?: any) {
   };
 
   try {
+    // Generate Report Data object for UI to easily consume
+    const reportData = {
+        totalDocuments: documents.length,
+        topics: lexicalResult.uniqueClasses.map((label, idx) => ({
+            id: label,
+            name: topWordsPerTopic[idx].slice(0, 3).map((w: any) => w.word).join(', '),
+            size: topicSizes[idx],
+            words: topWordsPerTopic[idx],
+            summary: hoverSummaries[idx]
+        }))
+    };
+    finalPayload.reportData = reportData;
+
     // Attempt standard postMessage (will fail if object is too large or contains unclonable types)
     ctx.postMessage({
       type: 'RESULT',
