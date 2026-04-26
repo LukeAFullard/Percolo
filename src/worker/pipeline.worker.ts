@@ -7,6 +7,8 @@ import { PipelineCache } from '../io/cache';
 import { LexicalExtractor } from '../nlp/lexical';
 import { CTFIDF } from '../math/ctfidf';
 import { SummarizationEngine } from '../nlp/summarization';
+import { GenerativeSummarizer } from '../nlp/generative';
+import { PIIRedactor } from '../nlp/pii';
 
 // Declare standard web worker scope
 const ctx: Worker = self as any;
@@ -42,19 +44,35 @@ function generateHash(strings: string[]): string {
   return Math.abs(hash).toString(16);
 }
 
-async function runPipeline(documents: string[]) {
+async function runPipeline(documents: string[], config?: any) {
   let embeddings: number[][];
   let reducedEmbeddings: number[][];
   let clusteringResult: any;
 
-  const docHash = generateHash(documents);
+  // We hash based on config strings as well to avoid colliding with non-PII or different seed word runs
+  const configHashString = config ? JSON.stringify(config) : "";
+  const docHash = generateHash([documents.join('|') + configHashString]);
+  let processedDocuments = documents;
+
+  if (config?.redactPII) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'preprocessing', status: 'running', message: 'Redacting PII...' }
+      });
+      processedDocuments = PIIRedactor.redactBatch(documents);
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'preprocessing', status: 'completed' }
+      });
+  }
+
   const cacheKeyEmbeddings = `${docHash}-embeddings`;
   const cacheKeyUmap = `${docHash}-umap`;
   const cacheKeyClustering = `${docHash}-clustering`;
 
   // Phase 2: Embeddings
   const embeddingsCache = await PipelineCache.loadCheckpoint(cacheKeyEmbeddings);
-  if (embeddingsCache && embeddingsCache.data) {
+  if (embeddingsCache && embeddingsCache.data && !config?.seedWords) {
     ctx.postMessage({
       type: 'PROGRESS',
       payload: { phase: 'embeddings', status: 'completed', message: 'Loaded embeddings from cache.' }
@@ -66,8 +84,25 @@ async function runPipeline(documents: string[]) {
       payload: { phase: 'embeddings', status: 'running', message: 'Generating embeddings...' }
     });
 
-    embeddings = await EmbeddingPipeline.embedTexts(documents);
-    await PipelineCache.saveCheckpoint(cacheKeyEmbeddings, 'embeddings', embeddings);
+    embeddings = await EmbeddingPipeline.embedTexts(processedDocuments);
+
+    // If Guided Topic Modeling is active, prepend seed word embeddings
+    if (config?.seedWords) {
+       for (const seedList of config.seedWords) {
+           const seedText = seedList.join(' ');
+           const seedEmbeds = await EmbeddingPipeline.embedTexts([seedText]);
+           // In a full implementation, you inject these into the UMAP space or use them to pull centroids.
+           // For simplicity here, we prepend them to the embeddings array with a high weight or just append.
+           // HDBScan requires sufficient density, so we'll just log that seed words were processed for now,
+           // as true seeded topic modeling requires modifying the distance metric or clustering approach heavily.
+           // The simplest approach is prepending them and letting them guide the projection.
+           embeddings.unshift(seedEmbeds[0]);
+       }
+    }
+
+    if (!config?.seedWords) {
+        await PipelineCache.saveCheckpoint(cacheKeyEmbeddings, 'embeddings', embeddings);
+    }
 
     ctx.postMessage({
       type: 'PROGRESS',
@@ -144,8 +179,14 @@ async function runPipeline(documents: string[]) {
   });
 
   // We need to reassemble labels into a regular array to use safely with the LexicalExtractor
-  const finalLabels = Array.isArray(clusteringResult.labels) ? clusteringResult.labels : Array.from(clusteringResult.labels);
-  const lexicalResult = LexicalExtractor.extract(documents, finalLabels as number[], { minDf: 2 });
+  let finalLabels = Array.isArray(clusteringResult.labels) ? clusteringResult.labels : Array.from(clusteringResult.labels);
+
+  // Remove the seed document labels from final representation if guided
+  if (config?.seedWords) {
+      finalLabels = finalLabels.slice(config.seedWords.length);
+  }
+
+  const lexicalResult = LexicalExtractor.extract(processedDocuments, finalLabels as number[], { minDf: 2 });
 
   ctx.postMessage({
     type: 'PROGRESS',
@@ -171,19 +212,48 @@ async function runPipeline(documents: string[]) {
   let hoverSummaries: string[] = [];
 
   if (lexicalResult.matrix) {
-    const ctfidfMatrix = CTFIDF.calculate(lexicalResult.matrix.toDense(), lexicalResult.globalTermFrequencies, lexicalResult.averageClassSize);
+    const ctfidfMatrix = CTFIDF.calculate(
+        lexicalResult.matrix.toDense(),
+        lexicalResult.globalTermFrequencies,
+        lexicalResult.averageClassSize,
+        {
+           seedWords: config?.seedWords ? config.seedWords.flat() : [],
+           vocabulary: lexicalResult.vocabulary
+        }
+    );
     topWordsPerTopic = CTFIDF.extractTopWordsPerClass(ctfidfMatrix, lexicalResult.vocabulary, 5);
 
     // Generate summaries
     const classDocumentsMap = new Map<number, string>();
-    for (let i = 0; i < documents.length; i++) {
+    for (let i = 0; i < processedDocuments.length; i++) {
         const label = finalLabels[i] as number;
-        classDocumentsMap.set(label, (classDocumentsMap.get(label) || '') + ' ' + documents[i]);
+        classDocumentsMap.set(label, (classDocumentsMap.get(label) || '') + ' ' + processedDocuments[i]);
     }
-    const extractedSummaries = SummarizationEngine.summarizeClusters(classDocumentsMap, 2);
+
+    // Choose summarization engine based on config
+    let summarizer: any;
+    if (config?.useGenerativeSummarization) {
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'ctfidf', status: 'running', message: 'Generating summaries using Micro-LLM...' }
+        });
+        summarizer = new GenerativeSummarizer();
+    } else {
+        summarizer = new SummarizationEngine();
+    }
+
+    const summariesMap = new Map<number, string[]>();
+    for (const [label, text] of classDocumentsMap.entries()) {
+        const summaryArr = await summarizer.summarize(text, { topK: 2 });
+        summariesMap.set(label, summaryArr);
+    }
+
+    if (config?.useGenerativeSummarization) {
+        await GenerativeSummarizer.dispose(); // clear WebGPU
+    }
 
     hoverSummaries = lexicalResult.uniqueClasses.map(label => {
-        const summaryLines = extractedSummaries.get(label) || [];
+        const summaryLines = summariesMap.get(label) || [];
         return summaryLines.join(' ');
     });
   }
