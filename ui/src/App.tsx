@@ -4,6 +4,8 @@ import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2 } from '
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { TopicBarchart } from './components/TopicBarchart';
 import { FileParser } from '@src/io/fileParser';
+import { ReportGenerator } from '@src/io/report';
+import { Download } from 'lucide-react';
 
 
 function App() {
@@ -219,6 +221,22 @@ function App() {
          return Array.from(labels as Iterable<any>).map(l => `Topic ${l}`);
       }
       return labels;
+  };
+
+  const handleDownloadReport = () => {
+    if (!results || !results.reportData) return;
+
+    const htmlContent = ReportGenerator.generateHTML(results.reportData);
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `percolo_report_${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -480,9 +498,21 @@ function App() {
                   )}
                 </div>
                 <div className="flex flex-col gap-6 h-full">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 overflow-auto">
-                    <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-200">Discovered Topics</h3>
-                    <div className="space-y-3">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 flex flex-col overflow-hidden">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Discovered Topics</h3>
+                      {results && results.reportData && (
+                        <button
+                          onClick={handleDownloadReport}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-md transition-colors text-sm font-medium"
+                          title="Download HTML Report"
+                        >
+                          <Download className="w-4 h-4" />
+                          Report
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-3 overflow-y-auto flex-1 pr-1">
                       {((results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels).map((label: string, i: number) => (
                         <div
                            key={i}
