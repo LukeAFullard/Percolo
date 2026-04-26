@@ -3,7 +3,7 @@ import model from 'wink-eng-lite-web-model';
 
 const nlp = winkNLP(model);
 const its = nlp.its;
-const as = nlp.as;
+// const _as = nlp.as;
 
 export interface NLPAnalyticsResult {
   sentiment: number;

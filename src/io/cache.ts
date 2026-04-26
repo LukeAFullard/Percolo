@@ -1,4 +1,4 @@
-import { openDB, IDBPDatabase } from 'idb';
+import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'percolo-pipeline-state';
 const STORE_NAME = 'checkpoints';
