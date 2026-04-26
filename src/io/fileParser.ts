@@ -26,9 +26,19 @@ export class FileParser {
       const filename = file.name.toLowerCase();
 
       // Normalize file object to ensure we have a buffer if arrayBuffer() is available (native File object)
-      const normalizedFile = { ...file };
-      if (!normalizedFile.buffer && normalizedFile.arrayBuffer) {
-          normalizedFile.buffer = await normalizedFile.arrayBuffer();
+      // Because DOM File/Blob objects lose their prototype chain and internal state when spread,
+      // we must create a plain object map explicitly.
+      const normalizedFile: { name: string; buffer?: ArrayBuffer; text?: () => Promise<string> } = {
+          name: file.name,
+          buffer: file.buffer,
+      };
+
+      if (!normalizedFile.buffer && typeof file.arrayBuffer === 'function') {
+          normalizedFile.buffer = await file.arrayBuffer();
+      }
+
+      if (!normalizedFile.buffer && typeof file.text === 'function') {
+          normalizedFile.text = file.text.bind(file);
       }
 
       if (filename.endsWith('.txt') || filename.endsWith('.md') || filename.endsWith('.json')) {
@@ -134,7 +144,7 @@ export class FileParser {
         // @ts-ignore
         new Uint8Array(file.buffer),
         'eng', // Default to English for now, can be parameterized later
-        { logger: m => {} } // Disable noisy logging for tests/production unless requested
+        { logger: _m => {} } // Disable noisy logging for tests/production unless requested
       );
 
       return { filename: file.name, content: result.data.text.trim() };

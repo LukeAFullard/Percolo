@@ -1,4 +1,4 @@
-import { HDBSCAN, HDBSCANParams } from 'hdbscan-ts';
+import { HDBSCAN, type HDBSCANParams } from 'hdbscan-ts';
 import { KMeansEngine } from './kmeans';
 
 export interface ClusteringResult {

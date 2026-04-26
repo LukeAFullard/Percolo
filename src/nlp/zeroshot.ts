@@ -1,4 +1,4 @@
-import { EmbeddingPipeline, EmbeddingOptions } from './embeddings';
+import { EmbeddingPipeline, type EmbeddingOptions } from './embeddings';
 import { Similarity } from '../math/similarity';
 
 export interface ZeroShotResult {

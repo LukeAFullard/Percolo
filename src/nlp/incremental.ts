@@ -1,5 +1,5 @@
-import { InferenceEngine, InferenceResult } from './inference';
-import { EmbeddingPipeline, EmbeddingOptions } from './embeddings';
+import { InferenceEngine, type InferenceResult } from './inference';
+import { EmbeddingPipeline, type EmbeddingOptions } from './embeddings';
 
 export interface IncrementalUpdateOptions extends EmbeddingOptions {
   /**

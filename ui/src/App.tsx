@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { usePercolo } from './hooks/usePercolo';
-import { Upload, Settings, BarChart2, Activity, Play, FileText } from 'lucide-react';
+import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2 } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
+import { FileParser } from '@src/io/fileParser';
+
 
 function App() {
   const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize'>('upload');
@@ -28,8 +30,60 @@ function App() {
     "Financial markets are influenced by global events."
   ]);
   const [inputText, setInputText] = React.useState(docs.join('\n\n'));
+  const [isParsingFiles, setIsParsingFiles] = React.useState(false);
+  const [parseProgress, setParseProgress] = React.useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { runPipeline, isProcessing, progress, results, error } = usePercolo();
+
+  const handleFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await processFiles(Array.from(e.target.files));
+    }
+    // Reset input so the same files can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const processFiles = async (files: File[]) => {
+    setIsParsingFiles(true);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setParseProgress(`Parsing ${file.name} (${i + 1}/${files.length})...`);
+      try {
+        const parsedDoc = await FileParser.parseFile(file);
+        if (parsedDoc.content) {
+            setInputText(prev => {
+                const newText = prev ? prev + '\n\n' + parsedDoc.content : parsedDoc.content;
+                return newText;
+            });
+        } else if (parsedDoc.error) {
+            console.error(`Error parsing ${file.name}: ${parsedDoc.error}`);
+        }
+      } catch (err) {
+        console.error(`Failed to parse ${file.name}`, err);
+      }
+    }
+
+    setIsParsingFiles(false);
+    setParseProgress('');
+  };
 
   const handleRun = () => {
     const documents = inputText.split('\n\n').filter(d => d.trim().length > 0);
@@ -114,13 +168,37 @@ function App() {
                 <p className="text-slate-500">Provide documents to analyze. Separate documents with double newlines.</p>
               </div>
 
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer bg-white dark:bg-slate-800">
-                <FileText className="w-12 h-12 mx-auto text-slate-400 mb-4" />
-                <h3 className="text-lg font-medium mb-2">Drag and drop files here</h3>
-                <p className="text-sm text-slate-500 mb-4">Or paste your text below</p>
-                <button className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-md transition-colors text-sm font-medium">
-                  Browse Files
-                </button>
+              <div
+                className={`border-2 border-dashed ${isParsingFiles ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-blue-500 dark:hover:border-blue-400'} rounded-xl p-8 text-center transition-colors cursor-pointer`}
+                onDrop={handleFileDrop}
+                onDragOver={handleDragOver}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileInput}
+                  accept=".txt,.md,.json,.pdf,.docx,.png,.jpg,.jpeg"
+                />
+
+                {isParsingFiles ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <Loader2 className="w-12 h-12 mx-auto text-blue-500 mb-4 animate-spin" />
+                    <h3 className="text-lg font-medium mb-2 text-blue-700 dark:text-blue-400">Processing Files</h3>
+                    <p className="text-sm text-blue-600 dark:text-blue-300">{parseProgress}</p>
+                  </div>
+                ) : (
+                  <>
+                    <FileText className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Drag and drop files here</h3>
+                    <p className="text-sm text-slate-500 mb-4">Or paste your text below</p>
+                    <button className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-md transition-colors text-sm font-medium pointer-events-none">
+                      Browse Files
+                    </button>
+                  </>
+                )}
               </div>
 
               <div>

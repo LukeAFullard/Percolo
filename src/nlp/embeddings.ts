@@ -2,7 +2,7 @@ import { pipeline, env, FeatureExtractionPipeline, Tensor } from '@huggingface/t
 
 // Configure transformers.js environment for browser execution
 env.allowLocalModels = false; // We are fetching from the huggingface hub
-env.backends.onnx.wasm.numThreads = 1; // Default fallback thread count
+if (env.backends.onnx.wasm) { env.backends.onnx.wasm.numThreads = 1; } // Default fallback thread count
 
 export interface EmbeddingOptions {
   modelName?: string;

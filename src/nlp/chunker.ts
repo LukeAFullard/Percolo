@@ -2,7 +2,7 @@ import winkNLP from 'wink-nlp';
 import model from 'wink-eng-lite-web-model';
 
 const nlp = winkNLP(model);
-const its = nlp.its;
+// const _its = nlp.its;
 
 export interface ChunkerOptions {
   maxTokens: number;
