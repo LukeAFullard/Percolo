@@ -19,6 +19,7 @@ export class EmbeddingPipeline {
    */
   static async getInstance(options: EmbeddingOptions = {}): Promise<FeatureExtractionPipeline> {
     const {
+      // Default to English, but users can pass 'Xenova/paraphrase-multilingual-MiniLM-L12-v2' for Cross-Lingual Alignment
       modelName = 'Xenova/all-MiniLM-L6-v2',
       precision = 'fp32',
       useWebGPU = false
