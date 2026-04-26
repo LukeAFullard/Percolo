@@ -33,14 +33,60 @@ function App() {
   const [isParsingFiles, setIsParsingFiles] = React.useState(false);
   const [parseProgress, setParseProgress] = React.useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelParsingRef = useRef(false);
 
   const { runPipeline, isProcessing, progress, results, error } = usePercolo();
+
+  const traverseFileTree = async (item: unknown, path: string = '', filesToProcess: File[] = []) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entry = item as any; // Cast internally to avoid @typescript-eslint/no-explicit-any on signature
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve) => entry.file(resolve));
+      filesToProcess.push(file);
+    } else if (entry.isDirectory) {
+      const dirReader = entry.createReader();
+      let allEntries: unknown[] = [];
+      let entries = await new Promise<unknown[]>((resolve) => {
+        dirReader.readEntries((results: unknown[]) => resolve(results));
+      });
+
+      while (entries.length > 0) {
+        allEntries = allEntries.concat(entries);
+        entries = await new Promise<unknown[]>((resolve) => {
+          dirReader.readEntries((results: unknown[]) => resolve(results));
+        });
+      }
+
+      for (const childEntry of allEntries) {
+        await traverseFileTree(childEntry, path + entry.name + "/", filesToProcess);
+      }
+    }
+    return filesToProcess;
+  };
 
   const handleFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const items = e.dataTransfer.items;
+    if (items && items.length > 0) {
+      let allFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i].webkitGetAsEntry();
+        if (item) {
+           const files = await traverseFileTree(item);
+           allFiles = allFiles.concat(files);
+        }
+      }
+
+      const supportedExtensions = ['.txt', '.md', '.json', '.pdf', '.docx', '.png', '.jpg', '.jpeg'];
+      const filteredFiles = allFiles.filter(f => supportedExtensions.some(ext => f.name.toLowerCase().endsWith(ext)));
+
+      if (filteredFiles.length > 0) {
+        await processFiles(filteredFiles);
+      }
+    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      // Fallback
       await processFiles(Array.from(e.dataTransfer.files));
     }
   };
@@ -60,10 +106,52 @@ function App() {
     }
   };
 
+  const handleBrowseFolder = async () => {
+    try {
+      // @ts-expect-error TS doesn't know about window.showDirectoryPicker
+      const dirHandle = await window.showDirectoryPicker();
+      const files: File[] = [];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const traverseDirectoryHandle = async (handle: any, path: string = '') => {
+        for await (const entry of handle.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            // Append path for context, though we only really process file objects.
+            files.push(file);
+          } else if (entry.kind === 'directory') {
+            await traverseDirectoryHandle(entry, path + entry.name + '/');
+          }
+        }
+      };
+
+      await traverseDirectoryHandle(dirHandle);
+
+      const supportedExtensions = ['.txt', '.md', '.json', '.pdf', '.docx', '.png', '.jpg', '.jpeg'];
+      const filteredFiles = files.filter(f => supportedExtensions.some(ext => f.name.toLowerCase().endsWith(ext)));
+
+      if (filteredFiles.length > 0) {
+        await processFiles(filteredFiles);
+      }
+    } catch (e) {
+      // User likely cancelled the picker
+      console.log('Directory selection cancelled or failed:', e);
+    }
+  };
+
   const processFiles = async (files: File[]) => {
     setIsParsingFiles(true);
+    cancelParsingRef.current = false;
 
     for (let i = 0; i < files.length; i++) {
+      if (cancelParsingRef.current) {
+        setParseProgress('Cancelled parsing.');
+        setTimeout(() => {
+          setIsParsingFiles(false);
+          setParseProgress('');
+        }, 2000);
+        return;
+      }
       const file = files[i];
       setParseProgress(`Parsing ${file.name} (${i + 1}/${files.length})...`);
       try {
@@ -98,9 +186,11 @@ function App() {
   const mockSizes = [50, 45, 15];
 
   // Transform array buffer labels into strings for plotting
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const processLabels = (labels: any) => {
       if (!labels) return null;
       if (ArrayBuffer.isView(labels) || Array.isArray(labels)) {
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
          return Array.from(labels as Iterable<any>).map(l => `Topic ${l}`);
       }
       return labels;
@@ -187,16 +277,35 @@ function App() {
                   <div className="flex flex-col items-center justify-center">
                     <Loader2 className="w-12 h-12 mx-auto text-blue-500 mb-4 animate-spin" />
                     <h3 className="text-lg font-medium mb-2 text-blue-700 dark:text-blue-400">Processing Files</h3>
-                    <p className="text-sm text-blue-600 dark:text-blue-300">{parseProgress}</p>
+                    <p className="text-sm text-blue-600 dark:text-blue-300 mb-4">{parseProgress}</p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cancelParsingRef.current = true;
+                      }}
+                      className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-400 rounded-md transition-colors text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 ) : (
                   <>
                     <FileText className="w-12 h-12 mx-auto text-slate-400 mb-4" />
                     <h3 className="text-lg font-medium mb-2">Drag and drop files here</h3>
                     <p className="text-sm text-slate-500 mb-4">Or paste your text below</p>
-                    <button className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-md transition-colors text-sm font-medium pointer-events-none">
-                      Browse Files
-                    </button>
+                    <div className="flex justify-center gap-4">
+                      <button className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-md transition-colors text-sm font-medium pointer-events-none">
+                        Browse Files
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent the container's onClick (file picker) from firing
+                          handleBrowseFolder();
+                        }}
+                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-md transition-colors text-sm font-medium">
+                        Browse Folder
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
