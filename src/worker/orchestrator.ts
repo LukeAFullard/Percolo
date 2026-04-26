@@ -182,21 +182,21 @@ export class PipelineOrchestrator {
     }
   }
 
-  public startPipeline(documents: string[]) {
+  public startPipeline(documents: string[], config?: any) {
     if (!this.worker) {
         // Fallback for non-browser environments or if worker failed to initialize
-        this.runFallbackPipeline(documents);
+        this.runFallbackPipeline(documents, config);
         return;
     }
 
     // Send documents to worker
     this.worker.postMessage({
       type: 'START_PIPELINE',
-      payload: { documents }
+      payload: { documents, config }
     });
   }
 
-  private runFallbackPipeline(_documents: string[]) {
+  private runFallbackPipeline(_documents: string[], _config?: any) {
       if (this.onProgressCallback) {
           this.onProgressCallback({
               phase: 'initialization',

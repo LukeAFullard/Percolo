@@ -41,7 +41,8 @@ export function usePercolo() {
     };
   }, []);
 
-  const runPipeline = (documents: string[]) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runPipeline = (documents: string[], config?: any) => {
     if (!orchestratorRef.current) {
       setError("Pipeline engine not initialized.");
       return;
@@ -52,7 +53,7 @@ export function usePercolo() {
     setProgress({ phase: 'initialization', status: 'running', progress: 0 });
 
     // Send documents to the pipeline
-    orchestratorRef.current.startPipeline(documents);
+    orchestratorRef.current.startPipeline(documents, config);
   };
 
   return {
