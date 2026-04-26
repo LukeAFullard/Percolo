@@ -35,10 +35,10 @@ export class EmbeddingPipeline {
       });
       this.currentModel = modelName;
     } catch (error) {
-      console.warn(`Failed to initialize ${modelName} on ${useWebGPU ? 'WebGPU' : 'WASM'}. Falling back to default WASM. Error:`, error);
+      console.warn(`Failed to initialize ${modelName} on ${useWebGPU ? 'WebGPU' : 'WASM'}. Falling back to CPU. Error: ${error}`);
       // Fallback
       this.instance = await pipeline('feature-extraction', modelName, {
-        device: 'wasm'
+        device: 'cpu'
       });
       this.currentModel = modelName;
     }
