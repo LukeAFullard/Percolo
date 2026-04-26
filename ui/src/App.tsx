@@ -5,7 +5,8 @@ import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { TopicBarchart } from './components/TopicBarchart';
 import { FileParser } from '@src/io/fileParser';
 import { ReportGenerator } from '@src/io/report';
-import { Download } from 'lucide-react';
+import { Exporter } from '@src/io/exporter';
+import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 
 
 function App() {
@@ -18,7 +19,11 @@ function App() {
     zeroShotCategories: '',
     tgtLang: '',
     runABSA: false,
-    useKeyBERT: false
+    useKeyBERT: false,
+    customStopWords: '',
+    targetTopicCount: '',
+    ngramRange: '1,1',
+    posFilter: 'ALL'
   });
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
@@ -201,6 +206,19 @@ function App() {
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
+    const customStopWordsList = settings.customStopWords
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.length > 0);
+
+    const ngramRange = settings.ngramRange.split(',').map(n => parseInt(n.trim(), 10));
+
+    let posFilter: string[] = [];
+    if (settings.posFilter === 'NOUN') posFilter = ['NOUN', 'PROPN'];
+    if (settings.posFilter === 'NOUN_ADJ') posFilter = ['NOUN', 'PROPN', 'ADJ'];
+
+    const targetTopicCountNum = parseInt(settings.targetTopicCount, 10);
+
     const pipelineConfig = {
       seedWords: seedWordsList.length > 0 ? [seedWordsList] : undefined, // Array of arrays as per API
       useGenerativeSummarization: settings.useGenerativeSummarization,
@@ -208,7 +226,11 @@ function App() {
       zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
       tgtLang: settings.tgtLang.trim() || undefined,
       runABSA: settings.runABSA,
-      useKeyBERT: settings.useKeyBERT
+      useKeyBERT: settings.useKeyBERT,
+      customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
+      targetTopicCount: !isNaN(targetTopicCountNum) && targetTopicCountNum > 0 ? targetTopicCountNum : undefined,
+      ngramRange: ngramRange.length === 2 && !isNaN(ngramRange[0]) && !isNaN(ngramRange[1]) ? ngramRange : [1, 1],
+      posFilter: posFilter.length > 0 ? posFilter : undefined
     };
 
     runPipeline(documents, pipelineConfig);
@@ -246,6 +268,69 @@ function App() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `percolo_report_${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    if (!results || !results.labels || !docs) return;
+
+    // Construct the PipelineResult object expected by the Exporter
+    const pipelineResult = {
+        documents: docs.map((text, i) => ({
+            text: text,
+            topicLabel: results.labels[i],
+            probability: results.probabilities ? results.probabilities[i] : 1.0,
+            embedding: results.umap ? results.umap[i] : undefined
+        })),
+        topics: results.uniqueClasses.map((label: number, idx: number) => ({
+            label: label,
+            name: results.topicLabels[idx],
+            size: results.topicSizes[idx],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            words: results.topicWords ? results.topicWords[idx].map((w: any) => w.word) : []
+        }))
+    };
+
+    const csvContent = Exporter.toCSV(pipelineResult);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `percolo_data_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportRAG = () => {
+    if (!results || !results.labels || !docs) return;
+
+    const pipelineResult = {
+        documents: docs.map((text, i) => ({
+            text: text,
+            topicLabel: results.labels[i],
+            probability: results.probabilities ? results.probabilities[i] : 1.0,
+            embedding: results.umap ? results.umap[i] : undefined
+        })),
+        topics: results.uniqueClasses.map((label: number, idx: number) => ({
+            label: label,
+            name: results.topicLabels[idx],
+            size: results.topicSizes[idx],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            words: results.topicWords ? results.topicWords[idx].map((w: any) => w.word) : []
+        }))
+    };
+
+    const ragContent = Exporter.toRAGReady(pipelineResult);
+    const blob = new Blob([ragContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `percolo_rag_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -435,6 +520,19 @@ function App() {
                   />
                 </div>
 
+                {/* Topic Reduction */}
+                <div>
+                  <h3 className="text-lg font-medium mb-1">Hierarchical Topic Reduction</h3>
+                  <p className="text-sm text-slate-500 mb-3">Force HDBSCAN to merge topics down to a specific target count using Centroid Cosine Similarity.</p>
+                  <input
+                    type="number"
+                    value={settings.targetTopicCount}
+                    onChange={(e) => setSettings(prev => ({ ...prev, targetTopicCount: e.target.value }))}
+                    placeholder="Leave blank for automatic detection..."
+                    className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
                 <hr className="border-slate-200 dark:border-slate-700" />
 
                 {/* Summarization Mode */}
@@ -508,16 +606,56 @@ function App() {
                       </div>
                     </label>
 
-                    <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cross-Lingual Target Language (FLORES-200 format)</label>
-                        <input
-                            type="text"
-                            value={settings.tgtLang}
-                            onChange={(e) => setSettings(prev => ({ ...prev, tgtLang: e.target.value }))}
-                            placeholder="e.g., eng_Latn, fra_Latn"
-                            className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                        />
-                        <p className="text-xs text-slate-500 mt-1">Leave blank to disable translation.</p>
+                    <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50 space-y-4">
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Lexical N-Gram Range</label>
+                          <select
+                              value={settings.ngramRange}
+                              onChange={(e) => setSettings(prev => ({ ...prev, ngramRange: e.target.value }))}
+                              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          >
+                            <option value="1,1">Unigrams Only (Fastest)</option>
+                            <option value="1,2">Unigrams + Bigrams</option>
+                            <option value="1,3">Up to Trigrams</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">POS-Based Topic Filtering</label>
+                          <select
+                              value={settings.posFilter}
+                              onChange={(e) => setSettings(prev => ({ ...prev, posFilter: e.target.value }))}
+                              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          >
+                            <option value="ALL">All Words</option>
+                            <option value="NOUN">Nouns Only</option>
+                            <option value="NOUN_ADJ">Nouns & Adjectives</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Custom Stop Words</label>
+                          <input
+                              type="text"
+                              value={settings.customStopWords}
+                              onChange={(e) => setSettings(prev => ({ ...prev, customStopWords: e.target.value }))}
+                              placeholder="Comma-separated words to ignore..."
+                              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cross-Lingual Target Language (FLORES-200)</label>
+                          <input
+                              type="text"
+                              value={settings.tgtLang}
+                              onChange={(e) => setSettings(prev => ({ ...prev, tgtLang: e.target.value }))}
+                              placeholder="e.g., eng_Latn, fra_Latn"
+                              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          />
+                        </div>
+
                     </div>
                   </div>
                 </div>
@@ -567,16 +705,38 @@ function App() {
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 flex flex-col overflow-hidden">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Discovered Topics</h3>
-                      {results && results.reportData && (
-                        <button
-                          onClick={handleDownloadReport}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-md transition-colors text-sm font-medium"
-                          title="Download HTML Report"
-                        >
-                          <Download className="w-4 h-4" />
-                          Report
-                        </button>
-                      )}
+                      <div className="flex gap-2">
+                          {results && (
+                            <>
+                                <button
+                                  onClick={handleExportCSV}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 rounded-md transition-colors text-xs font-medium"
+                                  title="Export CSV"
+                                >
+                                  <FileSpreadsheet className="w-4 h-4" />
+                                  CSV
+                                </button>
+                                <button
+                                  onClick={handleExportRAG}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 rounded-md transition-colors text-xs font-medium"
+                                  title="Export RAG JSON"
+                                >
+                                  <FileJson className="w-4 h-4" />
+                                  RAG
+                                </button>
+                            </>
+                          )}
+                          {results && results.reportData && (
+                            <button
+                              onClick={handleDownloadReport}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-md transition-colors text-sm font-medium ml-2"
+                              title="Download HTML Report"
+                            >
+                              <Download className="w-4 h-4" />
+                              Report
+                            </button>
+                          )}
+                      </div>
                     </div>
                     <div className="space-y-3 overflow-y-auto flex-1 pr-1">
                       {((results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels).map((label: string, i: number) => (

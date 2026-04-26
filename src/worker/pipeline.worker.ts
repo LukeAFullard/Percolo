@@ -5,6 +5,8 @@ import { UMAPReducer } from '../math/umap';
 import { ClusteringEngine } from '../math/clustering';
 import { PipelineCache } from '../io/cache';
 import { LexicalExtractor } from '../nlp/lexical';
+import { TopicReduction } from '../nlp/reduction';
+import { CoherenceMetrics } from '../math/coherence';
 import { CTFIDF } from '../math/ctfidf';
 import { SummarizationEngine } from '../nlp/summarization';
 import { GenerativeSummarizer } from '../nlp/generative';
@@ -214,7 +216,44 @@ async function runPipeline(documents: string[], config?: any) {
       finalLabels = finalLabels.slice(config.seedWords.length);
   }
 
-  const lexicalResult = LexicalExtractor.extract(processedDocuments, finalLabels as number[], { minDf: 2 });
+  let lexicalResult = LexicalExtractor.extract(processedDocuments, finalLabels as number[], {
+     minDf: 2,
+     ngramRange: config?.ngramRange || [1, 1],
+     posFilter: config?.posFilter
+  });
+
+  // Optional Phase: Topic Reduction
+  if (config?.targetTopicCount && config.targetTopicCount > 0 && config.targetTopicCount < lexicalResult.uniqueClasses.length) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'lexical', status: 'running', message: `Reducing topics down to ${config.targetTopicCount}...` }
+      });
+
+      // TopicReduction.reduce returns an array of new labels corresponding to the uniqueClasses
+      // We need to build a mapping from old class ID to new class ID
+      const reductionResult = TopicReduction.reduce(
+         lexicalResult.matrix,
+         lexicalResult.uniqueClasses,
+         config.targetTopicCount
+      );
+
+      const mapping = new Map<number, number>();
+      for (let i = 0; i < lexicalResult.uniqueClasses.length; i++) {
+          mapping.set(lexicalResult.uniqueClasses[i], reductionResult[i]);
+      }
+
+      // Update labels with merged mappings
+      finalLabels = finalLabels.map((label: any) => {
+          return mapping.has(label) ? mapping.get(label)! : label;
+      });
+
+      // Re-extract lexical context with new merged labels
+      lexicalResult = LexicalExtractor.extract(processedDocuments, finalLabels as number[], {
+         minDf: 2,
+         ngramRange: config?.ngramRange || [1, 1],
+         posFilter: config?.posFilter
+      });
+  }
 
   ctx.postMessage({
     type: 'PROGRESS',
@@ -240,9 +279,21 @@ async function runPipeline(documents: string[], config?: any) {
   let hoverSummaries: string[] = [];
 
   if (lexicalResult.matrix) {
+    // If Custom Stopwords are provided, zero out their frequencies so they aren't extracted
+    let globalTf = lexicalResult.globalTermFrequencies;
+    if (config?.customStopWords) {
+        globalTf = [...globalTf]; // clone
+        for (const stopword of config.customStopWords) {
+            const idx = lexicalResult.vocabulary.indexOf(stopword);
+            if (idx !== -1) {
+                globalTf[idx] = 0;
+            }
+        }
+    }
+
     const ctfidfMatrix = CTFIDF.calculate(
         lexicalResult.matrix.toDense(),
-        lexicalResult.globalTermFrequencies,
+        globalTf,
         lexicalResult.averageClassSize,
         {
            seedWords: config?.seedWords ? config.seedWords.flat() : [],
@@ -340,15 +391,32 @@ async function runPipeline(documents: string[], config?: any) {
       await CrossLingualTranslator.dispose();
   }
 
+  // Calculate Topic Coherence (NPMI)
+  const tokenizedDocs = processedDocuments.map(doc => doc.split(' '));
+  const wordsOnly = topWordsPerTopic.map(topic => topic.map((w: any) => w.word));
+  const coherenceScore = CoherenceMetrics.calculateNPMI(wordsOnly, tokenizedDocs).meanScore;
+
+  // Ensure we strip the prepended seed words from our data arrays before returning to UI
+  let outLabels = finalLabels;
+  let outProbs = clusteringResult.probabilities;
+  let outUmap = reducedEmbeddings;
+
+  if (config?.seedWords) {
+      const seedLen = config.seedWords.length;
+      // Note: finalLabels is already sliced earlier in the pipeline
+      outProbs = outProbs.slice(seedLen);
+      outUmap = outUmap.slice(seedLen);
+  }
+
 // Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
   const finalPayload: any = {
-    labels: clusteringResult.labels,
-    probabilities: clusteringResult.probabilities,
+    labels: outLabels,
+    probabilities: outProbs,
     topicLabels: displayLabels,
     topicSizes: topicSizes,
     hoverSummaries: hoverSummaries,
     uniqueClasses: lexicalResult.uniqueClasses,
-    umap: reducedEmbeddings,
+    umap: outUmap,
     topicWords: topWordsPerTopic // Included to drive the TopicBarchart
   };
 
@@ -356,6 +424,7 @@ async function runPipeline(documents: string[], config?: any) {
     // Generate Report Data object for UI to easily consume
     const reportData = {
         totalDocuments: documents.length,
+        coherenceScore: coherenceScore,
         topics: lexicalResult.uniqueClasses.map((label, idx) => ({
             id: label,
             name: topWordsPerTopic[idx].slice(0, 3).map((w: any) => w.word).join(', '),
