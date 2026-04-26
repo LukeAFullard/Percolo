@@ -16,6 +16,9 @@ Data never leaves your device.
 * **Keyphrase Extraction (KeyBERT)**: Uses n-gram embeddings and cosine similarity against parent documents to extract highly specific, semantic keyphrases.
 * **POS-Based Topic Filtering**: Optionally restrict topic vocabulary exclusively to Nouns and Adjectives for highly interpretable cluster names.
 * **Modular Generative Summarization**: Swap between ultra-light extractive summarization (TF-IDF) and WebGPU-powered Micro-LLMs (e.g., TinyLlama) for generative cluster summaries.
+* **Automated PII Redaction**: Automatically mask emails, phone numbers, URLs, and custom Regex patterns (like SSNs) via `winkNLP` before vectorization.
+* **Cross-Lingual Topic Alignment**: Native integration of sequence-to-sequence translation models (e.g., NLLB-200) to map topics generated in mixed languages back to a single target language.
+* **Aspect-Based Sentiment Analysis (ABSA)**: Auto-extracts noun-phrases and scores the explicit sentiment targeting those phrases within the text, circumventing generic global document scores.
 * **Progressive Web App (PWA)**: Installable, offline-first execution via Service Workers and IndexedDB model caching.
 
 ## Project Structure
@@ -72,24 +75,11 @@ Percolo achieves high structural fidelity to the original BERTopic reference imp
 3.  **Cluster:** Identifies dense semantic neighborhoods and excludes outliers (HDBSCAN).
 4.  **Represent:** Creates Class-Documents, computes sparse CSR matrices, and extracts uniquely weighting terms via c-TF-IDF.
 
-## Future NLP Extensions (Roadmap)
+## Extensibility
 
-Percolo is designed with a modular architecture, allowing new NLP tasks to be integrated seamlessly by swapping or chaining browser-compatible ONNX models via `transformers.js`. The following tasks are mapped for future integration, with explicit memory evaluations to ensure edge-native stability:
+Percolo is designed with a modular architecture, allowing new NLP tasks to be integrated seamlessly by swapping or chaining browser-compatible ONNX models via `transformers.js`.
 
-### 1. Automated PII Redaction
-* **Details:** A pre-processing hook to identify and mask Personally Identifiable Information (Names, Locations, SSNs) before vectorization or RAG export.
-* **Modular Models:** Regular expressions via `wink-nlp` or dedicated ONNX token-classification models (e.g., `Xenova/bert-base-NER`).
-* **Memory Evaluation:** *Moderate (50-100MB RAM).* Can run safely on Tier-2 (Laptop) hardware but should be unloaded immediately after preprocessing.
-
-### 2. Cross-Lingual Topic Alignment
-* **Details:** Process mixed-language corpora into a unified semantic space, then translate resulting topic labels back to a target language (e.g., English).
-* **Modular Models:** Swap default embeddings to a multilingual variant (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`). Use seq2seq models like `Xenova/nllb-200-distilled-600M` for translation.
-* **Memory Evaluation:** *High.* Multilingual embeddings add minimal overhead, but the translation model is heavy (~600MB) and risks out-of-memory errors on mobile. Restricted to Desktop profiles.
-
-### 3. Aspect-Based Sentiment Analysis (ABSA)
-* **Details:** Extract specific noun-phrases (aspects) and score the sentiment *specifically targeted at that aspect*.
-* **Modular Models:** Sequence classification or targeted question-answering models (e.g., a quantized DeBERTa-v3 ABSA model).
-* **Memory Evaluation:** *Moderate-to-High (~100MB-250MB RAM).* Highly compute-intensive because inference must run on every extracted aspect per document. Requires background Web Worker processing.
+Because it runs entirely client-side, the Cap-and-Tier scaling system handles the lifecycle of models (like explicitly unloading Dense Embedding layers before spinning up WebGPU Text-Generation layers) to prevent OOM errors on standard devices.
 
 ## License
 MIT
