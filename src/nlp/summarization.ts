@@ -4,7 +4,21 @@ import model from 'wink-eng-lite-web-model';
 const nlp = winkNLP(model);
 const its = nlp.its;
 
-export class SummarizationEngine {
+import type { ISummarizer } from './generative';
+
+export class SummarizationEngine implements ISummarizer {
+  /**
+   * Generates an extractive summary for a given text by scoring sentences using a basic TF-IDF approach.
+   *
+   * @param text The input document or cluster text.
+   * @param options Configuration options. Uses topK to determine number of sentences (default 2).
+   * @returns An array of the top K most representative sentences.
+   */
+  async summarize(text: string, options: { topK?: number } = {}): Promise<string[]> {
+      const topK = options.topK || 2;
+      return SummarizationEngine.extractSummary(text, topK);
+  }
+
   /**
    * Generates an extractive summary for a given text by scoring sentences using a basic TF-IDF approach.
    *
