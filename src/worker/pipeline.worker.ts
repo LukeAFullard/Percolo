@@ -9,6 +9,10 @@ import { CTFIDF } from '../math/ctfidf';
 import { SummarizationEngine } from '../nlp/summarization';
 import { GenerativeSummarizer } from '../nlp/generative';
 import { PIIRedactor } from '../nlp/pii';
+import { ZeroShotClassifier } from '../nlp/zeroshot';
+import { CrossLingualTranslator } from '../nlp/translation';
+import { ABSAEngine } from '../nlp/absa';
+import { KeyphraseExtractor } from '../nlp/keyphrase';
 
 // Declare standard web worker scope
 const ctx: Worker = self as any;
@@ -115,61 +119,85 @@ async function runPipeline(documents: string[], config?: any) {
   // before proceeding to memory-heavy graph operations (UMAP/HDBSCAN).
   await EmbeddingPipeline.dispose();
 
-  // Phase 3: UMAP
-  const umapCache = await PipelineCache.loadCheckpoint(cacheKeyUmap);
-  if (umapCache && umapCache.data) {
-    ctx.postMessage({
-      type: 'PROGRESS',
-      payload: { phase: 'umap', status: 'completed', message: 'Loaded UMAP projection from cache.' }
-    });
-    reducedEmbeddings = umapCache.data;
-  } else {
-    ctx.postMessage({
-      type: 'PROGRESS',
-      payload: { phase: 'umap', status: 'running', message: 'Reducing dimensions...' }
-    });
+  // Phase 3/4: UMAP & Clustering OR Zero-Shot Classification
+  if (config?.zeroShotCategories) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'clustering', status: 'running', message: 'Performing Zero-Shot Classification...' }
+      });
+      // Bypass HDBSCAN, assign directly via cosine similarity to category embeddings
+      const zsResult = await ZeroShotClassifier.classify(embeddings, config.zeroShotCategories);
 
-    const nEpochs = 500; // Default number of epochs for UMAP. Might want to pass this down in options.
-    reducedEmbeddings = await UMAPReducer.reduceAsync(embeddings, {}, (epoch) => {
-      // Report progress periodically to avoid flooding message queue
-      if (epoch % 10 === 0) {
-        const progressPercent = Math.round((epoch / nEpochs) * 100);
+      // Map zero shot categories to numeric indices to mock HDBSCAN labels
+      const categoryMap = new Map<string, number>();
+      config.zeroShotCategories.forEach((cat: string, idx: number) => categoryMap.set(cat, idx));
+
+      clusteringResult = {
+         labels: zsResult.map(r => categoryMap.get(r.label) as number),
+         probabilities: zsResult.map(r => r.similarity)
+      };
+
+      // Dummy UMAP representation for visualizer parity if strictly zero-shot, though normally skipped
+      reducedEmbeddings = embeddings.map(e => [e[0] || 0, e[1] || 0]);
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'clustering', status: 'completed' }
+      });
+  } else {
+      const umapCache = await PipelineCache.loadCheckpoint(cacheKeyUmap);
+      if (umapCache && umapCache.data) {
         ctx.postMessage({
           type: 'PROGRESS',
-          payload: { phase: 'umap', status: 'running', progress: progressPercent, message: `Reducing dimensions (${epoch}/${nEpochs})...` }
+          payload: { phase: 'umap', status: 'completed', message: 'Loaded UMAP projection from cache.' }
+        });
+        reducedEmbeddings = umapCache.data;
+      } else {
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'umap', status: 'running', message: 'Reducing dimensions...' }
+        });
+
+        const nEpochs = 500; // Default number of epochs for UMAP. Might want to pass this down in options.
+        reducedEmbeddings = await UMAPReducer.reduceAsync(embeddings, {}, (epoch) => {
+          // Report progress periodically to avoid flooding message queue
+          if (epoch % 10 === 0) {
+            const progressPercent = Math.round((epoch / nEpochs) * 100);
+            ctx.postMessage({
+              type: 'PROGRESS',
+              payload: { phase: 'umap', status: 'running', progress: progressPercent, message: `Reducing dimensions (${epoch}/${nEpochs})...` }
+            });
+          }
+        });
+
+        await PipelineCache.saveCheckpoint(cacheKeyUmap, 'umap', reducedEmbeddings);
+
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'umap', status: 'completed' }
         });
       }
-    });
 
-    await PipelineCache.saveCheckpoint(cacheKeyUmap, 'umap', reducedEmbeddings);
+      const clusteringCache = await PipelineCache.loadCheckpoint(cacheKeyClustering);
+      if (clusteringCache && clusteringCache.data) {
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'clustering', status: 'completed', message: 'Loaded clustering from cache.' }
+        });
+        clusteringResult = clusteringCache.data;
+      } else {
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'clustering', status: 'running', message: 'Clustering documents...' }
+        });
 
-    ctx.postMessage({
-      type: 'PROGRESS',
-      payload: { phase: 'umap', status: 'completed' }
-    });
-  }
+        clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings);
+        await PipelineCache.saveCheckpoint(cacheKeyClustering, 'clustering', clusteringResult);
 
-  // Phase 4: Clustering
-  const clusteringCache = await PipelineCache.loadCheckpoint(cacheKeyClustering);
-  if (clusteringCache && clusteringCache.data) {
-    ctx.postMessage({
-      type: 'PROGRESS',
-      payload: { phase: 'clustering', status: 'completed', message: 'Loaded clustering from cache.' }
-    });
-    clusteringResult = clusteringCache.data;
-  } else {
-    ctx.postMessage({
-      type: 'PROGRESS',
-      payload: { phase: 'clustering', status: 'running', message: 'Clustering documents...' }
-    });
-
-    clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings);
-    await PipelineCache.saveCheckpoint(cacheKeyClustering, 'clustering', clusteringResult);
-
-    ctx.postMessage({
-      type: 'PROGRESS',
-      payload: { phase: 'clustering', status: 'completed' }
-    });
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'clustering', status: 'completed' }
+        });
+      }
   }
 
     // Phase 5: Lexical Extraction
@@ -223,11 +251,31 @@ async function runPipeline(documents: string[], config?: any) {
     );
     topWordsPerTopic = CTFIDF.extractTopWordsPerClass(ctfidfMatrix, lexicalResult.vocabulary, 5);
 
-    // Generate summaries
+    // Generate summaries and map classes
     const classDocumentsMap = new Map<number, string>();
     for (let i = 0; i < processedDocuments.length; i++) {
         const label = finalLabels[i] as number;
         classDocumentsMap.set(label, (classDocumentsMap.get(label) || '') + ' ' + processedDocuments[i]);
+    }
+
+    // KeyBERT Phrases
+    if (config?.useKeyBERT) {
+        ctx.postMessage({
+          type: 'PROGRESS',
+          payload: { phase: 'ctfidf', status: 'running', message: 'Extracting Keyphrases via KeyBERT...' }
+        });
+        // We run KeyBERT on the class documents
+        for (let i = 0; i < lexicalResult.uniqueClasses.length; i++) {
+             const label = lexicalResult.uniqueClasses[i];
+             const text = classDocumentsMap.get(label) || '';
+             const keyphrases = await KeyphraseExtractor.extract(text, { topK: 3 });
+             // Append to the c-TF-IDF words so they render in the UI Barchart
+             // We give them slightly higher artificial scores so they float to the top
+             keyphrases.forEach((kp, idx) => {
+                 topWordsPerTopic[i].unshift({ word: `[KP] ${kp.phrase}`, score: 1.0 - (idx * 0.01) });
+             });
+        }
+        await EmbeddingPipeline.dispose(); // KeyBERT uses embeddings, so clean up
     }
 
     // Choose summarization engine based on config
@@ -245,11 +293,27 @@ async function runPipeline(documents: string[], config?: any) {
     const summariesMap = new Map<number, string[]>();
     for (const [label, text] of classDocumentsMap.entries()) {
         const summaryArr = await summarizer.summarize(text, { topK: 2 });
-        summariesMap.set(label, summaryArr);
+
+        let finalSummary = summaryArr.join(' ');
+
+        // ABSA Analysis
+        if (config?.runABSA) {
+            const absaResults = await ABSAEngine.analyze(text);
+            if (absaResults.length > 0) {
+               // Top 3 sentiments
+               const topSentiments = absaResults.slice(0, 3).map(a => `${a.aspect} (${a.sentiment})`).join(', ');
+               finalSummary += `\n[Sentiments: ${topSentiments}]`;
+            }
+        }
+
+        summariesMap.set(label, [finalSummary]);
     }
 
     if (config?.useGenerativeSummarization) {
         await GenerativeSummarizer.dispose(); // clear WebGPU
+    }
+    if (config?.runABSA) {
+        await ABSAEngine.dispose();
     }
 
     hoverSummaries = lexicalResult.uniqueClasses.map(label => {
@@ -263,15 +327,29 @@ async function runPipeline(documents: string[], config?: any) {
     payload: { phase: 'ctfidf', status: 'completed' }
   });
 
+  let displayLabels = topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`);
+
+  if (config?.tgtLang && config.tgtLang.trim().length > 0) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'ctfidf', status: 'running', message: `Translating topics to ${config.tgtLang}...` }
+      });
+      const originalNames = topWordsPerTopic.map((words, _i) => words.slice(0, 3).map((w: any) => w.word).join(', '));
+      const translated = await CrossLingualTranslator.translate(originalNames, { tgtLang: config.tgtLang });
+      displayLabels = translated.map((t, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${t}`);
+      await CrossLingualTranslator.dispose();
+  }
+
 // Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
   const finalPayload: any = {
     labels: clusteringResult.labels,
     probabilities: clusteringResult.probabilities,
-    topicLabels: topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`),
+    topicLabels: displayLabels,
     topicSizes: topicSizes,
     hoverSummaries: hoverSummaries,
     uniqueClasses: lexicalResult.uniqueClasses,
-    umap: reducedEmbeddings
+    umap: reducedEmbeddings,
+    topicWords: topWordsPerTopic // Included to drive the TopicBarchart
   };
 
   try {
