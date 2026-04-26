@@ -2,11 +2,13 @@ import React, { useRef } from 'react';
 import { usePercolo } from './hooks/usePercolo';
 import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2 } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
+import { TopicBarchart } from './components/TopicBarchart';
 import { FileParser } from '@src/io/fileParser';
 
 
 function App() {
   const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize'>('upload');
+  const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
     "Another text discussing the stock market, trading, and finance economics.",
@@ -184,6 +186,11 @@ function App() {
   const mockUmap = [[-1.5, 2.1], [3.2, -0.5], [0.8, -2.4]];
   const mockLabels = ["Topic 0: AI/ML", "Topic 1: Finance", "Topic 2: Weather"];
   const mockSizes = [50, 45, 15];
+  const mockTopicWords = [
+      [{word: "AI", score: 0.8}, {word: "ML", score: 0.7}, {word: "model", score: 0.6}],
+      [{word: "stock", score: 0.9}, {word: "market", score: 0.8}, {word: "finance", score: 0.5}],
+      [{word: "weather", score: 0.7}, {word: "sunny", score: 0.6}, {word: "rain", score: 0.4}]
+  ];
 
   // Transform array buffer labels into strings for plotting
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -354,22 +361,39 @@ function App() {
                 <p className="text-sm text-slate-500 mt-2">{progress.message}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-                <div className="lg:col-span-2 h-full">
-                  <IntertopicDistanceMap
-                    umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
-                    topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
-                    topicSizes={(results?.topicSizes as number[]) || mockSizes}
-                    hoverSummaries={(results?.hoverSummaries as string[])}
-                  />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-hidden">
+                <div className="lg:col-span-2 h-full flex flex-col gap-6">
+                  <div className="flex-1 min-h-0">
+                      <IntertopicDistanceMap
+                        umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
+                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                        topicSizes={(results?.topicSizes as number[]) || mockSizes}
+                        hoverSummaries={(results?.hoverSummaries as string[])}
+                      />
+                  </div>
+                  {selectedTopic !== null && (
+                      <div className="h-1/3 min-h-[300px]">
+                          <TopicBarchart
+                              topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
+                              topicId={selectedTopic}
+                          />
+                      </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-6 h-full">
                   <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 overflow-auto">
                     <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-200">Discovered Topics</h3>
                     <div className="space-y-3">
                       {((results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels).map((label: string, i: number) => (
-                        <div key={i} className="p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-100 dark:border-slate-700">
-                          <div className="font-medium">{label}</div>
+                        <div
+                           key={i}
+                           onClick={() => setSelectedTopic(i)}
+                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                               selectedTopic === i
+                                  ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 shadow-sm'
+                                  : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                           }`}>
+                          <div className="font-medium text-sm">{label}</div>
                           <div className="text-xs text-slate-500 mt-1">
                             Size: {((results?.topicSizes as number[]) || mockSizes)[i]} documents
                           </div>

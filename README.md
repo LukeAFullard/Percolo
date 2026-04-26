@@ -19,6 +19,8 @@ Data never leaves your device.
 * **Automated PII Redaction**: Automatically mask emails, phone numbers, URLs, and custom Regex patterns (like SSNs) via `winkNLP` before vectorization.
 * **Cross-Lingual Topic Alignment**: Native integration of sequence-to-sequence translation models (e.g., NLLB-200) to map topics generated in mixed languages back to a single target language.
 * **Aspect-Based Sentiment Analysis (ABSA)**: Auto-extracts noun-phrases and scores the explicit sentiment targeting those phrases within the text, circumventing generic global document scores.
+* **N-Gram Representation**: Configurable n-gram range for c-TF-IDF extraction, mapping complex phrases seamlessly into CSR matrix logic.
+* **Interactive Visualizations**: Includes Plotly-powered Intertopic Distance Maps and Topic Term Bar Charts.
 * **Progressive Web App (PWA)**: Installable, offline-first execution via Service Workers and IndexedDB model caching.
 
 ## Project Structure

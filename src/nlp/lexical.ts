@@ -8,6 +8,7 @@ const its = nlp.its;
 export interface LexicalExtractionOptions {
   minDf?: number; // Minimum document frequency for vocabulary pruning (default 2)
   posFilter?: string[]; // Allowed POS tags (e.g., ['NOUN', 'ADJ']). If empty, all words allowed.
+  ngramRange?: [number, number]; // N-gram range, defaults to [1, 1] for unigrams
 }
 
 export interface LexicalResult {
@@ -31,6 +32,7 @@ export class LexicalExtractor {
   static extract(documents: string[], labels: number[], options: LexicalExtractionOptions = {}): LexicalResult {
     const minDf = options.minDf !== undefined ? options.minDf : 2;
     const posFilter = options.posFilter || [];
+    const ngramRange = options.ngramRange || [1, 1];
 
     if (documents.length === 0 || labels.length === 0 || documents.length !== labels.length) {
       return {
@@ -69,7 +71,6 @@ export class LexicalExtractor {
       const doc = nlp.readDoc(text);
 
       // Extract tokens, remove punctuation, remove stop words
-      // Optionally extract bigrams here, but sticking to unigrams as default for now
       const tokens = doc.tokens()
         .filter((t: any) => {
            if (t.out(its.type) !== 'word' || t.out(its.stopWordFlag)) return false;
@@ -84,9 +85,16 @@ export class LexicalExtractor {
       const termCountsForClass = new Map<string, number>();
       const uniqueTermsInClass = new Set<string>();
 
-      for (const token of tokens) {
-        termCountsForClass.set(token, (termCountsForClass.get(token) || 0) + 1);
-        uniqueTermsInClass.add(token);
+      // Generate N-Grams
+      const [minN, maxN] = ngramRange;
+      for (let n = minN; n <= maxN; n++) {
+        for (let j = 0; j <= tokens.length - n; j++) {
+            const ngram = tokens.slice(j, j + n).join(' ');
+            if (ngram.trim() !== '') {
+                termCountsForClass.set(ngram, (termCountsForClass.get(ngram) || 0) + 1);
+                uniqueTermsInClass.add(ngram);
+            }
+        }
       }
 
       classTermCounts.set(label, termCountsForClass);
