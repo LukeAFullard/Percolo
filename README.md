@@ -1,6 +1,6 @@
-# Percolo: Edge-Native BERTopic Pipeline
+# Percolo: Edge-Native Topic Modeling Pipeline
 
-Percolo is a fully edge-native **BERTopic** pipeline. It performs privacy-first, serverless topic modeling by running all high-dimensional vector math and NLP tasks entirely within the client's browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript.
+Percolo is a fully edge-native **Topic Modeling** pipeline. It performs privacy-first, serverless topic modeling by running all high-dimensional vector math and NLP tasks entirely within the client's browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript.
 
 Data never leaves your device.
 
@@ -71,7 +71,7 @@ Because Percolo runs entirely client-side, it implements a dynamic **Cap-and-Tie
 
 ## Architecture & Math
 
-Percolo achieves high structural fidelity to the original BERTopic reference implementation:
+Percolo achieves high structural fidelity to leading modular topic modeling architectures:
 1.  **Embed:** Converts documents to dense vectors (`all-MiniLM-L6-v2`).
 2.  **Reduce:** Projects high-dimensional space down to 2-5 dimensions using Stochastic Gradient Descent (UMAP).
 3.  **Cluster:** Identifies dense semantic neighborhoods and excludes outliers (HDBSCAN).

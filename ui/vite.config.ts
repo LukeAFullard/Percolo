@@ -18,7 +18,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Percolo: Edge-Native BERTopic',
+        name: 'Percolo: Edge-Native Topic Modeling',
         short_name: 'Percolo',
         description: 'A privacy-first, fully client-side topic modeling tool.',
         theme_color: '#0f172a',

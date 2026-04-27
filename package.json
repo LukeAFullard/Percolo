@@ -1,7 +1,7 @@
 {
   "name": "percolo",
   "version": "0.1.0",
-  "description": "An edge-native BERTopic pipeline designed to run entirely in the browser using WASM and WebGPU.",
+  "description": "An edge-native Topic Modeling pipeline designed to run entirely in the browser using WASM and WebGPU.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {

@@ -381,7 +381,7 @@ function App() {
             <BarChart2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             Percolo
           </h1>
-          <p className="text-xs text-slate-500 mt-1">Edge-Native BERTopic</p>
+          <p className="text-xs text-slate-500 mt-1">Edge-Native Topic Modeling</p>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
