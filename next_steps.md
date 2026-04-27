@@ -23,10 +23,19 @@ The application produces comprehensive client-side exports via the `Exporter` an
 - **CSV Data:** Downloads the raw matrix of documents mapped to topics and probabilities.
 - **RAG-Ready JSON:** Outputs a fully structured vector-database object for immediate loading into LlamaIndex or LangChain frameworks.
 
-## Future Recommendations
+## Future Recommendations (Advanced NLP Parity)
 
-While the project scope is entirely complete, if you wish to expand Percolo further in the future, consider these additions:
+While the core project scope is entirely complete and the UI exposes all foundational engines, if you wish to expand Percolo to achieve 100% parity with heavy server-side Python ecosystems (like the original BERTopic), consider these additions:
 
-1. **NPM Publishing:** The `/src` folder is designed to be decoupled. Running `npm run build` generates a standalone TypeScript library. Publishing this to NPM would allow other developers to import `PercoloEngine` into their own projects without using your React UI.
-2. **Advanced Charting:** Adding a Hierarchical Dendrogram (tree graph) or Cosine Similarity Heatmap would round out the final visualizations native to the Python BERTopic library.
-3. **PWA Cloud Hosting:** The application currently relies on `vite-plugin-pwa`. Deploying this `dist` folder to Cloudflare Pages or Vercel (ensuring that `public/_headers` for COOP/COEP isolation is respected) will finalize its transition into a true zero-server Edge AI application.
+### Missing Core NLP Tasks
+1. **Dynamic BM25 Weighting:** While Percolo utilizes high-speed TF-IDF and c-TF-IDF algorithms, adding a BM25 implementation would provide a robust alternative for term extraction. BM25 is a standard in modern search/RAG architectures because it prevents document-length saturation better than TF-IDF.
+2. **Generative LLM Topic Labeling:** Currently, the generative Micro-LLM logic (`GenerativeSummarizer`) generates a paragraph summary of a cluster. This logic could be extended to prompt the LLM to generate a concise, 2-to-3 word "Topic Name" based on the extracted c-TF-IDF keywords (e.g., prompting the LLM: *"Based on the words [car, battery, engine], name this topic"*).
+
+### Missing Visualizations (Plotly)
+1. **Similarity Heatmap:** While cosine similarity mathematics exists in the backend (`SimilarityMetrics`), the UI lacks a correlation matrix visualization showing the mathematical distance between all discovered topics.
+2. **Fuzzy Clustering Distributions:** Percolo maps each document to its primary topic. Advanced libraries often utilize horizontal bar charts to display the continuous probability distribution of a *single document* across *multiple* overlapping topics.
+3. **Hierarchical Dendrogram:** A tree-graph visualization to show users exactly how topics were merged during the `TopicReduction` phase.
+
+### Deployment Next Steps
+1. **NPM Publishing:** The `/src` folder is designed to be fully decoupled from the React UI. Running `npm run build` generates a standalone TypeScript library. Publishing this to NPM would allow other developers to import the headless `PercoloEngine` into their own local-first applications.
+2. **PWA Cloud Hosting:** Deploying the generated `dist` folder to static hosts like Cloudflare Pages or Vercel. Ensure that the `public/_headers` (which enforce COOP/COEP Cross-Origin Isolation for Web Worker SharedArrayBuffers) are correctly respected by the hosting provider to maintain high-performance threading.
