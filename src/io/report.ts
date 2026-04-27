@@ -7,6 +7,7 @@ export interface ReportData {
     size: number;
     words: Array<{ word: string; score: number }>;
     summary?: string;
+    analytics?: any;
   }>;
   executionTimeMs?: number;
 }
@@ -48,6 +49,14 @@ export class ReportGenerator {
           md += `- **Summary:** ${topic.summary}\n`;
       }
 
+      if (topic.analytics) {
+          const sentimentStr = topic.analytics.sentiment > 0 ? 'Positive' : topic.analytics.sentiment < 0 ? 'Negative' : 'Neutral';
+          md += `- **General Sentiment:** ${sentimentStr} (${topic.analytics.sentiment.toFixed(2)})\n`;
+          if (topic.analytics.entities.dates.length > 0) md += `- **Extracted Dates:** ${topic.analytics.entities.dates.slice(0,5).join(', ')}\n`;
+          if (topic.analytics.entities.money.length > 0) md += `- **Extracted Money/Values:** ${topic.analytics.entities.money.slice(0,5).join(', ')}\n`;
+          if (topic.analytics.entities.emails.length > 0) md += `- **Extracted Emails:** ${topic.analytics.entities.emails.slice(0,5).join(', ')}\n`;
+      }
+
       md += `- **Top Keywords (c-TF-IDF):**\n`;
       for (const w of topic.words.slice(0, 10)) {
           md += `  - ${w.word} (${w.score.toFixed(4)})\n`;
@@ -84,7 +93,7 @@ export class ReportGenerator {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Percolo Analysis Report</title>
+    <title>Edge-Native Topic Modeling Report</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }

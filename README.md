@@ -1,6 +1,6 @@
-# Percolo: Edge-Native Topic Modeling Pipeline
+# Edge-Native Topic Modeler
 
-Percolo is a fully edge-native **Topic Modeling** pipeline. It performs privacy-first, serverless topic modeling by running all high-dimensional vector math and NLP tasks entirely within the client's browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript.
+This is a fully edge-native **Topic Modeling** pipeline. It performs privacy-first, serverless topic modeling by running all high-dimensional vector math and NLP tasks entirely within the client's browser using WebAssembly (WASM), WebGPU, and high-performance JavaScript.
 
 Data never leaves your device.
 
@@ -62,16 +62,16 @@ npm run build --prefix ui
 
 ## Browser Constraints & Memory Hygiene
 
-Because Percolo runs entirely client-side, it implements a dynamic **Cap-and-Tier** scaling system to prevent browser Out-Of-Memory (OOM) crashes:
+Because the app runs entirely client-side, it implements a dynamic **Cap-and-Tier** scaling system to prevent browser Out-Of-Memory (OOM) crashes:
 
 *   **Token Budgets:** Memory constraints limit the volume of text that can be processed simultaneously. Low-end mobile devices are capped at ~250k tokens, while WebGPU desktop environments scale up to ~2.5M tokens.
 *   **Web Worker Isolation:** Heavy graph traversals (UMAP/HDBSCAN) are executed in a dedicated Web Worker to prevent UI thread blocking.
 *   **Memory Release:** The ONNX FeatureExtractionPipeline is explicitly disposed of (`.dispose()`) immediately after embedding generation, forcefully releasing GPU memory back to the OS before synchronous CPU graph algorithms execute.
-*   **COOP/COEP Headers:** To utilize `SharedArrayBuffer` for multi-threaded WASM execution, your host must serve the application with strict Cross-Origin Isolation headers. If unavailable, Percolo falls back to chunked `postMessage` data transfers.
+*   **COOP/COEP Headers:** To utilize `SharedArrayBuffer` for multi-threaded WASM execution, your host must serve the application with strict Cross-Origin Isolation headers. If unavailable, the app falls back to chunked `postMessage` data transfers.
 
 ## Architecture & Math
 
-Percolo achieves high structural fidelity to leading modular topic modeling architectures:
+This tool achieves high structural fidelity to leading modular topic modeling architectures:
 1.  **Embed:** Converts documents to dense vectors (`all-MiniLM-L6-v2`).
 2.  **Reduce:** Projects high-dimensional space down to 2-5 dimensions using Stochastic Gradient Descent (UMAP).
 3.  **Cluster:** Identifies dense semantic neighborhoods and excludes outliers (HDBSCAN).
@@ -79,7 +79,7 @@ Percolo achieves high structural fidelity to leading modular topic modeling arch
 
 ## Extensibility
 
-Percolo is designed with a modular architecture, allowing new NLP tasks to be integrated seamlessly by swapping or chaining browser-compatible ONNX models via `transformers.js`.
+The tool is designed with a modular architecture, allowing new NLP tasks to be integrated seamlessly by swapping or chaining browser-compatible ONNX models via `transformers.js`.
 
 Because it runs entirely client-side, the Cap-and-Tier scaling system handles the lifecycle of models (like explicitly unloading Dense Embedding layers before spinning up WebGPU Text-Generation layers) to prevent OOM errors on standard devices.
 
