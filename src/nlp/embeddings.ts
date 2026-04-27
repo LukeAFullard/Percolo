@@ -32,11 +32,11 @@ export class EmbeddingPipeline {
     try {
       this.instance = await pipeline('feature-extraction', modelName, {
         dtype: precision as any, // Typecast for simplicity with the HF types
-        device: useWebGPU ? 'webgpu' : 'wasm',
+        device: useWebGPU ? 'webgpu' : 'cpu',
       });
       this.currentModel = modelName;
     } catch (error) {
-      console.warn(`Failed to initialize ${modelName} on ${useWebGPU ? 'WebGPU' : 'WASM'}. Falling back to CPU. Error: ${error}`);
+      console.warn(`Failed to initialize ${modelName} on ${useWebGPU ? 'WebGPU' : 'CPU'}. Falling back to CPU. Error: ${error}`);
       // Fallback
       this.instance = await pipeline('feature-extraction', modelName, {
         device: 'cpu'

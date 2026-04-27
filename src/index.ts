@@ -15,6 +15,7 @@ export * from './nlp/guided';
 export * from './nlp/incremental';
 export * from './nlp/inference';
 export * from './nlp/lexical';
+export * from './nlp/ner';
 export * from './nlp/reduction';
 export * from './nlp/summarization';
 export * from './nlp/zeroshot';

@@ -29,6 +29,7 @@ function App() {
     tgtLang: '',
     runABSA: false,
     runAnalytics: false,
+    runNER: false,
     useKeyBERT: false,
     customStopWords: '',
     targetTopicCount: '',
@@ -38,7 +39,8 @@ function App() {
     fuzzyClustering: false,
     useChunking: false,
     chunkMaxTokens: 256,
-    chunkOverlapTokens: 50
+    chunkOverlapTokens: 50,
+    useLowMemoryFallback: false
   });
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
@@ -212,6 +214,7 @@ function App() {
       tgtLang: settings.tgtLang.trim() || undefined,
       runABSA: settings.runABSA,
       runAnalytics: settings.runAnalytics,
+      runNER: settings.runNER,
       useKeyBERT: settings.useKeyBERT,
       customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
       targetTopicCount: !isNaN(targetTopicCountNum) && targetTopicCountNum > 0 ? targetTopicCountNum : undefined,
@@ -221,7 +224,8 @@ function App() {
       fuzzyClustering: settings.fuzzyClustering,
       useChunking: settings.useChunking,
       chunkMaxTokens: settings.chunkMaxTokens,
-      chunkOverlapTokens: settings.chunkOverlapTokens
+      chunkOverlapTokens: settings.chunkOverlapTokens,
+      useLowMemoryFallback: settings.useLowMemoryFallback
     };
   };
 
@@ -685,6 +689,19 @@ function App() {
                       </div>
                     </label>
 
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.runNER}
+                        onChange={(e) => setSettings(prev => ({ ...prev, runNER: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Named Entity Recognition (NER)</span>
+                        <span className="block text-sm text-slate-500">Uses a transformer model to extract deep entities (Persons, Organizations, Locations).</span>
+                      </div>
+                    </label>
+
                     <div className="flex flex-col gap-2">
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input
@@ -753,6 +770,19 @@ function App() {
                           </div>
                         )}
                     </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer mt-4">
+                      <input
+                        type="checkbox"
+                        checked={settings.useLowMemoryFallback}
+                        onChange={(e) => setSettings(prev => ({ ...prev, useLowMemoryFallback: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Low Memory Fallback (KMeans)</span>
+                        <span className="block text-sm text-slate-500">Replaces HDBSCAN with KMeans for low-RAM devices or massive datasets. Prevents OOM crashes but loses cluster shape nuance.</span>
+                      </div>
+                    </label>
 
                     <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50 space-y-4">
 

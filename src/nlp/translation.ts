@@ -37,10 +37,10 @@ export class CrossLingualTranslator {
       });
       this.currentModel = modelName;
     } catch (error) {
-      console.warn(`Failed to initialize translator ${modelName} on WebGPU. Falling back to WASM/CPU (This will be extremely slow). Error: ${error}`);
+      console.warn(`Failed to initialize translator ${modelName} on WebGPU. Falling back to CPU (This will be extremely slow). Error: ${error}`);
       this.instance = await pipeline('translation', modelName, {
         dtype: precision as any,
-        device: typeof window === 'undefined' ? 'cpu' : 'wasm'
+        device: 'cpu'
       });
       this.currentModel = modelName;
     }

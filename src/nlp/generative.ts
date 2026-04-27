@@ -42,10 +42,10 @@ export class GenerativeSummarizer implements ISummarizer {
       });
       this.currentModel = modelName;
     } catch (error) {
-      console.warn(`Failed to initialize generative LLM ${modelName} on WebGPU. Falling back to WASM/CPU (This will be extremely slow). Error: ${error}`);
+      console.warn(`Failed to initialize generative LLM ${modelName} on WebGPU. Falling back to CPU (This will be extremely slow). Error: ${error}`);
       this.instance = await pipeline('text-generation', modelName, {
         dtype: precision as any,
-        device: 'wasm'
+        device: 'cpu'
       });
       this.currentModel = modelName;
     }
