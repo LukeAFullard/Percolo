@@ -6,6 +6,9 @@ import { TopicBarchart } from './components/TopicBarchart';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
 import { DynamicTopicModeling } from './components/DynamicTopicModeling';
 import { DocumentDistribution } from './components/DocumentDistribution';
+import { LandingPage } from './components/LandingPage';
+import { CookieBanner } from './components/CookieBanner';
+import { LegalNoticeModal } from './components/LegalNoticeModal';
 import { FileParser } from '@src/io/fileParser';
 import { ReportGenerator } from '@src/io/report';
 import { Exporter } from '@src/io/exporter';
@@ -13,7 +16,8 @@ import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 
 
 function App() {
-  const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize' | 'inference' | 'search' | 'settings'>('upload');
+  const [activeTab, setActiveTab] = React.useState<'landing' | 'upload' | 'visualize' | 'inference' | 'search' | 'settings'>('landing');
+  const [isLegalModalOpen, setIsLegalModalOpen] = React.useState(false);
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
   const [settings, setSettings] = React.useState({
@@ -372,8 +376,24 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  if (activeTab === 'landing') {
+    return (
+      <>
+        <LandingPage
+          onStart={() => setActiveTab('upload')}
+          onOpenLegal={() => setIsLegalModalOpen(true)}
+        />
+        <CookieBanner onOpenLegal={() => setIsLegalModalOpen(true)} />
+        <LegalNoticeModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} />
+      </>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans">
+      <CookieBanner onOpenLegal={() => setIsLegalModalOpen(true)} />
+      <LegalNoticeModal isOpen={isLegalModalOpen} onClose={() => setIsLegalModalOpen(false)} />
+
       {/* Sidebar */}
       <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700">
