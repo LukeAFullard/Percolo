@@ -88,6 +88,38 @@ export class GenerativeSummarizer implements ISummarizer {
   }
 
   /**
+   * Generates a concise 2-3 word topic label based on a list of keywords.
+   */
+  async generateTopicLabel(keywords: string[], options: GenerativeOptions = {}): Promise<string> {
+    if (!keywords || keywords.length === 0) return "";
+
+    const llm = await GenerativeSummarizer.getInstance(options);
+
+    const keywordStr = keywords.join(', ');
+    const defaultPrompt = (input: string) => `Based on the following keywords: [${input}], write a concise 2-to-3 word label that describes this topic.\n\nTopic Label:`;
+    const promptFunc = options.promptTemplate || defaultPrompt;
+
+    const prompt = promptFunc(keywordStr);
+
+    const output = await llm(prompt, {
+      max_new_tokens: options.maxNewTokens || 10, // keep it very short
+      temperature: options.temperature || 0.1, // low temp for deterministic labeling
+      do_sample: true,
+      return_full_text: false
+    });
+
+    if (Array.isArray(output) && output.length > 0 && output[0].generated_text) {
+        let label = output[0].generated_text.trim();
+        // LLMs sometimes answer verbosely even when asked not to.
+        // We do a basic cleanup (e.g. taking the first line or removing quotes)
+        label = label.replace(/^["']|["']$/g, '').split('\n')[0].trim();
+        return label;
+    }
+
+    return "";
+  }
+
+  /**
    * Disposes of the active LLM to free VRAM.
    */
   static async dispose() {

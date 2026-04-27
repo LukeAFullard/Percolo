@@ -3,6 +3,8 @@ import { usePercolo } from './hooks/usePercolo';
 import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2 } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { TopicBarchart } from './components/TopicBarchart';
+import { SimilarityHeatmap } from './components/SimilarityHeatmap';
+import { DocumentDistribution } from './components/DocumentDistribution';
 import { FileParser } from '@src/io/fileParser';
 import { ReportGenerator } from '@src/io/report';
 import { Exporter } from '@src/io/exporter';
@@ -12,6 +14,7 @@ import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 function App() {
   const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize' | 'settings'>('upload');
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
+  const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
   const [settings, setSettings] = React.useState({
     seedWords: '',
     useGenerativeSummarization: false,
@@ -23,7 +26,9 @@ function App() {
     customStopWords: '',
     targetTopicCount: '',
     ngramRange: '1,1',
-    posFilter: 'ALL'
+    posFilter: 'ALL',
+    useBM25: false,
+    fuzzyClustering: false
   });
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
@@ -157,6 +162,47 @@ function App() {
     }
   };
 
+  const buildPipelineConfig = () => {
+    const seedWordsList = settings.seedWords
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const zeroShotList = settings.zeroShotCategories
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const customStopWordsList = settings.customStopWords
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.length > 0);
+
+    const ngramRange = settings.ngramRange.split(',').map(n => parseInt(n.trim(), 10));
+
+    let posFilter: string[] = [];
+    if (settings.posFilter === 'NOUN') posFilter = ['NOUN', 'PROPN'];
+    if (settings.posFilter === 'NOUN_ADJ') posFilter = ['NOUN', 'PROPN', 'ADJ'];
+
+    const targetTopicCountNum = parseInt(settings.targetTopicCount, 10);
+
+    return {
+      seedWords: seedWordsList.length > 0 ? [seedWordsList] : undefined,
+      useGenerativeSummarization: settings.useGenerativeSummarization,
+      redactPII: settings.redactPII,
+      zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
+      tgtLang: settings.tgtLang.trim() || undefined,
+      runABSA: settings.runABSA,
+      useKeyBERT: settings.useKeyBERT,
+      customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
+      targetTopicCount: !isNaN(targetTopicCountNum) && targetTopicCountNum > 0 ? targetTopicCountNum : undefined,
+      ngramRange: ngramRange.length === 2 && !isNaN(ngramRange[0]) && !isNaN(ngramRange[1]) ? ngramRange : [1, 1],
+      posFilter: posFilter.length > 0 ? posFilter : undefined,
+      useBM25: settings.useBM25,
+      fuzzyClustering: settings.fuzzyClustering
+    };
+  };
+
   const processFiles = async (files: File[]) => {
     setIsParsingFiles(true);
     cancelParsingRef.current = false;
@@ -194,46 +240,7 @@ function App() {
   const handleRun = () => {
     const documents = inputText.split('\n\n').filter(d => d.trim().length > 0);
     setDocs(documents);
-
-    // Process seed words if any
-    const seedWordsList = settings.seedWords
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    const zeroShotList = settings.zeroShotCategories
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    const customStopWordsList = settings.customStopWords
-      .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(s => s.length > 0);
-
-    const ngramRange = settings.ngramRange.split(',').map(n => parseInt(n.trim(), 10));
-
-    let posFilter: string[] = [];
-    if (settings.posFilter === 'NOUN') posFilter = ['NOUN', 'PROPN'];
-    if (settings.posFilter === 'NOUN_ADJ') posFilter = ['NOUN', 'PROPN', 'ADJ'];
-
-    const targetTopicCountNum = parseInt(settings.targetTopicCount, 10);
-
-    const pipelineConfig = {
-      seedWords: seedWordsList.length > 0 ? [seedWordsList] : undefined, // Array of arrays as per API
-      useGenerativeSummarization: settings.useGenerativeSummarization,
-      redactPII: settings.redactPII,
-      zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
-      tgtLang: settings.tgtLang.trim() || undefined,
-      runABSA: settings.runABSA,
-      useKeyBERT: settings.useKeyBERT,
-      customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
-      targetTopicCount: !isNaN(targetTopicCountNum) && targetTopicCountNum > 0 ? targetTopicCountNum : undefined,
-      ngramRange: ngramRange.length === 2 && !isNaN(ngramRange[0]) && !isNaN(ngramRange[1]) ? ngramRange : [1, 1],
-      posFilter: posFilter.length > 0 ? posFilter : undefined
-    };
-
-    runPipeline(documents, pipelineConfig);
+    runPipeline(documents, buildPipelineConfig());
     setActiveTab('visualize');
   };
 
@@ -245,6 +252,16 @@ function App() {
       [{word: "AI", score: 0.8}, {word: "ML", score: 0.7}, {word: "model", score: 0.6}],
       [{word: "stock", score: 0.9}, {word: "market", score: 0.8}, {word: "finance", score: 0.5}],
       [{word: "weather", score: 0.7}, {word: "sunny", score: 0.6}, {word: "rain", score: 0.4}]
+  ];
+  const mockSimilarityMatrix = [
+      [1.0, 0.1, 0.05],
+      [0.1, 1.0, 0.2],
+      [0.05, 0.2, 1.0]
+  ];
+  const mockDocumentDistributions = [
+      [0.8, 0.1, 0.1], // Doc 0 leans heavily to Topic 0
+      [0.2, 0.7, 0.1],
+      [0.0, 0.2, 0.8]
   ];
 
   // Transform array buffer labels into strings for plotting
@@ -606,7 +623,32 @@ function App() {
                       </div>
                     </label>
 
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.fuzzyClustering}
+                        onChange={(e) => setSettings(prev => ({ ...prev, fuzzyClustering: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Fuzzy Document Distributions</span>
+                        <span className="block text-sm text-slate-500">Computes the probability of each document belonging to EVERY topic, enabling fuzzy clustering visualizations.</span>
+                      </div>
+                    </label>
+
                     <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50 space-y-4">
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Term Weighting Algorithm</label>
+                          <select
+                              value={settings.useBM25 ? 'BM25' : 'CTFIDF'}
+                              onChange={(e) => setSettings(prev => ({ ...prev, useBM25: e.target.value === 'BM25' }))}
+                              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          >
+                            <option value="CTFIDF">c-TF-IDF (Default)</option>
+                            <option value="BM25">BM25 (Handles document length saturation)</option>
+                          </select>
+                        </div>
 
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Lexical N-Gram Range</label>
@@ -683,8 +725,8 @@ function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-hidden">
-                <div className="lg:col-span-2 h-full flex flex-col gap-6">
-                  <div className="flex-1 min-h-0">
+                <div className="lg:col-span-2 h-full flex flex-col gap-6 overflow-y-auto pr-2">
+                  <div className="min-h-[400px]">
                       <IntertopicDistanceMap
                         umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
                         topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
@@ -692,17 +734,33 @@ function App() {
                         hoverSummaries={(results?.hoverSummaries as string[])}
                       />
                   </div>
+
+                  <div className="min-h-[400px]">
+                      <SimilarityHeatmap
+                        similarityMatrix={results?.similarityMatrix || mockSimilarityMatrix}
+                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                      />
+                  </div>
+
                   {selectedTopic !== null && (
-                      <div className="h-1/3 min-h-[300px]">
+                      <div className="min-h-[300px]">
                           <TopicBarchart
                               topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
                               topicId={selectedTopic}
                           />
                       </div>
                   )}
+                  {selectedDocIndex !== null && (
+                      <div className="min-h-[300px]">
+                          <DocumentDistribution
+                              probabilities={results?.documentDistributions ? results.documentDistributions[selectedDocIndex] : mockDocumentDistributions[selectedDocIndex % 3]}
+                              topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                          />
+                      </div>
+                  )}
                 </div>
-                <div className="flex flex-col gap-6 h-full">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 flex flex-col overflow-hidden">
+                <div className="flex flex-col gap-6 h-full overflow-hidden">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 flex flex-col min-h-0">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Discovered Topics</h3>
                       <div className="flex gap-2">
@@ -754,6 +812,36 @@ function App() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex-1 flex flex-col min-h-0">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Documents</h3>
+                    </div>
+                    <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+                      {docs.slice(0, 50).map((doc: string, i: number) => (
+                        <div
+                           key={i}
+                           onClick={() => setSelectedDocIndex(i)}
+                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                               selectedDocIndex === i
+                                  ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 shadow-sm'
+                                  : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                           }`}>
+                          <div className="text-sm text-slate-700 dark:text-slate-300 line-clamp-3">{doc}</div>
+                          {results && results.labels && (
+                              <div className="text-xs text-slate-500 mt-2 font-medium">
+                                Assigned Topic: {results.labels[i]}
+                              </div>
+                          )}
+                        </div>
+                      ))}
+                      {docs.length > 50 && (
+                          <div className="text-xs text-center text-slate-400 py-2">
+                              Showing first 50 documents...
+                          </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -15,6 +15,7 @@ import { ZeroShotClassifier } from '../nlp/zeroshot';
 import { CrossLingualTranslator } from '../nlp/translation';
 import { ABSAEngine } from '../nlp/absa';
 import { KeyphraseExtractor } from '../nlp/keyphrase';
+import { Similarity } from '../math/similarity';
 
 // Declare standard web worker scope
 const ctx: Worker = self as any;
@@ -291,16 +292,31 @@ async function runPipeline(documents: string[], config?: any) {
         }
     }
 
-    const ctfidfMatrix = CTFIDF.calculate(
-        lexicalResult.matrix.toDense(),
-        globalTf,
-        lexicalResult.averageClassSize,
-        {
+    const denseMatrix = lexicalResult.matrix.toDense();
+
+    let scoringMatrix: number[][];
+    if (config?.useBM25) {
+        // Compute class sizes for BM25
+        const classSizes = denseMatrix.map((row: number[]) => row.reduce((a, b) => a + b, 0));
+        // Need to require bm25 dynamically or import it at top
+        const { BM25 } = await import('../math/bm25');
+        scoringMatrix = BM25.calculate(denseMatrix, globalTf, lexicalResult.averageClassSize, classSizes, {
            seedWords: config?.seedWords ? config.seedWords.flat() : [],
            vocabulary: lexicalResult.vocabulary
-        }
-    );
-    topWordsPerTopic = CTFIDF.extractTopWordsPerClass(ctfidfMatrix, lexicalResult.vocabulary, 5);
+        });
+    } else {
+        scoringMatrix = CTFIDF.calculate(
+            denseMatrix,
+            globalTf,
+            lexicalResult.averageClassSize,
+            {
+               seedWords: config?.seedWords ? config.seedWords.flat() : [],
+               vocabulary: lexicalResult.vocabulary
+            }
+        );
+    }
+
+    topWordsPerTopic = CTFIDF.extractTopWordsPerClass(scoringMatrix, lexicalResult.vocabulary, 5);
 
     // Generate summaries and map classes
     const classDocumentsMap = new Map<number, string>();
@@ -342,9 +358,14 @@ async function runPipeline(documents: string[], config?: any) {
     }
 
     const summariesMap = new Map<number, string[]>();
-    for (const [label, text] of classDocumentsMap.entries()) {
-        const summaryArr = await summarizer.summarize(text, { topK: 2 });
+    const generativeLabels = new Map<number, string>();
 
+    // We can iterate indices to access topWordsPerTopic
+    for (let i = 0; i < lexicalResult.uniqueClasses.length; i++) {
+        const label = lexicalResult.uniqueClasses[i];
+        const text = classDocumentsMap.get(label) || '';
+
+        const summaryArr = await summarizer.summarize(text, { topK: 2 });
         let finalSummary = summaryArr.join(' ');
 
         // ABSA Analysis
@@ -356,8 +377,19 @@ async function runPipeline(documents: string[], config?: any) {
                finalSummary += `\n[Sentiments: ${topSentiments}]`;
             }
         }
-
         summariesMap.set(label, [finalSummary]);
+
+        // Generative Topic Labeling
+        if (config?.useGenerativeSummarization && summarizer instanceof GenerativeSummarizer) {
+            const keywords = topWordsPerTopic[i].slice(0, 5).map((w: any) => w.word);
+            // Skip naming Noise/Outlier topics dynamically since it breaks cohesion
+            if (label !== -1) {
+                const generatedLabel = await summarizer.generateTopicLabel(keywords);
+                if (generatedLabel) {
+                    generativeLabels.set(label, generatedLabel);
+                }
+            }
+        }
     }
 
     if (config?.useGenerativeSummarization) {
@@ -371,14 +403,40 @@ async function runPipeline(documents: string[], config?: any) {
         const summaryLines = summariesMap.get(label) || [];
         return summaryLines.join(' ');
     });
+
+    // Default display labels (c-TF-IDF / BM25 fallback)
+    let displayLabels = topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`);
+
+    // Apply Generative Labels if generated
+    if (generativeLabels.size > 0) {
+        displayLabels = displayLabels.map((defaultLabel, i) => {
+            const classId = lexicalResult.uniqueClasses[i];
+            const genLabel = generativeLabels.get(classId);
+            return genLabel ? `Topic ${classId}: ${genLabel}` : defaultLabel;
+        });
+    }
+
+    // Export labels to outer scope for final payload logic
+    ctx.postMessage({
+      type: 'PROGRESS',
+      payload: { phase: 'ctfidf', status: 'completed' }
+    });
+
+    // We mutate a let variable created outside this block if it existed, but `displayLabels`
+    // is created right below. We need to restructure slightly to pass it down.
+    var finalDisplayLabels = displayLabels;
+  } else {
+     var finalDisplayLabels: string[] = [];
   }
 
-  ctx.postMessage({
-    type: 'PROGRESS',
-    payload: { phase: 'ctfidf', status: 'completed' }
-  });
+  // Fallback if matrix was empty
+  if (finalDisplayLabels.length === 0 && topWordsPerTopic.length > 0) {
+      finalDisplayLabels = topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`);
+  } else if (finalDisplayLabels.length === 0) {
+      finalDisplayLabels = lexicalResult.uniqueClasses.map(c => `Topic ${c}`);
+  }
 
-  let displayLabels = topWordsPerTopic.map((words, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${words.slice(0, 3).map((w: any) => w.word).join(', ')}`);
+  let displayLabels = finalDisplayLabels;
 
   if (config?.tgtLang && config.tgtLang.trim().length > 0) {
       ctx.postMessage({
@@ -396,16 +454,76 @@ async function runPipeline(documents: string[], config?: any) {
   const wordsOnly = topWordsPerTopic.map(topic => topic.map((w: any) => w.word));
   const coherenceScore = CoherenceMetrics.calculateNPMI(wordsOnly, tokenizedDocs).meanScore;
 
+  // Calculate Topic Similarity Matrix
+  const similarityMatrix: number[][] = [];
+  if (lexicalResult.matrix && topWordsPerTopic.length > 0) {
+      const denseMatrix = lexicalResult.matrix.toDense();
+      for (let i = 0; i < denseMatrix.length; i++) {
+          const rowSims = Similarity.cosineMultiple(denseMatrix[i], denseMatrix);
+          similarityMatrix.push(rowSims);
+      }
+  }
+
   // Ensure we strip the prepended seed words from our data arrays before returning to UI
   let outLabels = finalLabels;
   let outProbs = clusteringResult.probabilities;
   let outUmap = reducedEmbeddings;
+  let outEmbeddings = embeddings;
 
   if (config?.seedWords) {
       const seedLen = config.seedWords.length;
       // Note: finalLabels is already sliced earlier in the pipeline
       outProbs = outProbs.slice(seedLen);
       outUmap = outUmap.slice(seedLen);
+      outEmbeddings = outEmbeddings.slice(seedLen);
+  }
+
+  // Calculate Document Probability Distribution (Fuzzy assignments to topics)
+  // Standard HDBSCAN gives a single membership probability.
+  // To get a distribution across ALL topics for a document, we calculate softmaxed cosine similarities
+  // to the topic centroids.
+  const documentDistributions: number[][] = [];
+  if (config?.fuzzyClustering && lexicalResult.uniqueClasses.length > 1) {
+       ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'ctfidf', status: 'running', message: `Calculating fuzzy probability distributions...` }
+      });
+      // 1. Calculate Centroids
+      const { Centroids } = await import('../math/centroids');
+      const centroidsMap = Centroids.calculate(outEmbeddings, outLabels as number[]);
+
+      // We need an ordered array of centroids matching the `uniqueClasses` indices
+      const orderedCentroids: number[][] = [];
+      const validClasses: number[] = [];
+
+      for (const cls of lexicalResult.uniqueClasses) {
+          if (cls !== -1 && centroidsMap.has(cls)) {
+              orderedCentroids.push(centroidsMap.get(cls)!);
+              validClasses.push(cls);
+          }
+      }
+
+      if (orderedCentroids.length > 0) {
+          // 2. Compute similarity of each document to each centroid
+          for (let i = 0; i < outEmbeddings.length; i++) {
+              const docVec = outEmbeddings[i];
+              const sims = Similarity.cosineMultiple(docVec, orderedCentroids);
+
+              // Apply Softmax to similarities to get probabilities
+              const maxSim = Math.max(...sims);
+              const expSims = sims.map((s: number) => Math.exp(s - maxSim)); // subtract max for numerical stability
+              const sumExp = expSims.reduce((a: number, b: number) => a+b, 0);
+              const probs = expSims.map((e: number) => sumExp > 0 ? e / sumExp : 0);
+
+              // Map back to the full length of uniqueClasses (padding outliers with 0)
+              const fullProbs = new Array(lexicalResult.uniqueClasses.length).fill(0);
+              for (let pIdx = 0; pIdx < probs.length; pIdx++) {
+                  const globalIdx = lexicalResult.uniqueClasses.indexOf(validClasses[pIdx]);
+                  fullProbs[globalIdx] = probs[pIdx];
+              }
+              documentDistributions.push(fullProbs);
+          }
+      }
   }
 
 // Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
@@ -417,7 +535,9 @@ async function runPipeline(documents: string[], config?: any) {
     hoverSummaries: hoverSummaries,
     uniqueClasses: lexicalResult.uniqueClasses,
     umap: outUmap,
-    topicWords: topWordsPerTopic // Included to drive the TopicBarchart
+    topicWords: topWordsPerTopic, // Included to drive the TopicBarchart
+    similarityMatrix: similarityMatrix, // Included to drive Heatmap
+    documentDistributions: documentDistributions // Included to drive Fuzzy Distribution Barchart
   };
 
   try {
