@@ -554,7 +554,16 @@ async function runPipeline(documents: string[], config?: any) {
         payload: { phase: 'ctfidf', status: 'running', message: `Translating topics to ${config.tgtLang}...` }
       });
       const originalNames = topWordsPerTopic.map((words, _i) => words.slice(0, 3).map((w: any) => w.word).join(', '));
-      const translated = await CrossLingualTranslator.translate(originalNames, { tgtLang: config.tgtLang });
+
+      // Map FLORES-200 3-letter codes (e.g. 'eng_Latn') to 2-letter codes (e.g. 'en') for m2m100
+      let tgtLang = config.tgtLang || 'en';
+      if (tgtLang.includes('_')) {
+          const prefix = tgtLang.split('_')[0]; // e.g. 'eng', 'fra', 'spa', 'deu'
+          const map: Record<string, string> = { 'eng': 'en', 'fra': 'fr', 'spa': 'es', 'deu': 'de', 'ita': 'it', 'por': 'pt', 'nld': 'nl', 'rus': 'ru', 'zho': 'zh', 'jpn': 'ja', 'kor': 'ko', 'ara': 'ar', 'hin': 'hi' };
+          tgtLang = map[prefix] || prefix.slice(0, 2); // Fallback to first two letters if not in map
+      }
+      const translated = await CrossLingualTranslator.translate(originalNames, { tgtLang });
+
       displayLabels = translated.map((t, i) => `Topic ${lexicalResult.uniqueClasses[i]}: ${t}`);
       await CrossLingualTranslator.dispose();
   }

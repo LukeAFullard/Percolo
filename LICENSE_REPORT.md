@@ -6,7 +6,9 @@ This report details the licenses for all open-source packages (NPM dependencies)
 
 * **NPM Packages:** All used NPM packages utilize permissive open-source licenses (MIT, Apache-2.0, ISC, BSD-2-Clause) which are generally compatible with both open-source and commercial use.
 * **Machine Learning Models:** Most models are permissively licensed (Apache-2.0, MIT). However, **one model uses a restrictive non-commercial license**.
-* **⚠️ ACTION REQUIRED:** The `Xenova/nllb-200-distilled-600M` translation model is licensed under **CC-BY-NC-4.0** (Creative Commons Attribution-NonCommercial 4.0 International). If this application is intended for commercial use, this model **must be replaced** with a commercially viable alternative or a commercial license must be obtained.
+* **⚠️ ACTION REQUIRED / ADDRESSED:** The `Xenova/nllb-200-distilled-600M` translation model is licensed under **CC-BY-NC-4.0** (Creative Commons Attribution-NonCommercial 4.0 International).
+  * **Function:** This model is used for **Cross-Lingual Topic Alignment** within `src/nlp/translation.ts` (specifically the `CrossLingualTranslator` class).
+  * **Replacement:** We have replaced it with `Xenova/m2m100_418M` as the new default model. This is derived from `facebook/m2m100_418M` which is licensed under the highly permissive **MIT** license, resolving the commercial compliance issue.
 
 ## Machine Learning Models
 
@@ -14,7 +16,8 @@ This report details the licenses for all open-source packages (NPM dependencies)
 |---|---|---|
 | `Xenova/TinyLlama-1.1B-Chat-v1.0` | **Apache-2.0** | Original Model (TinyLlama/TinyLlama-1.1B-Chat-v1.0) |
 | `Xenova/bert-base-multilingual-uncased-sentiment` | **MIT** | Original Model (nlptown/bert-base-multilingual-uncased-sentiment) |
-| `Xenova/nllb-200-distilled-600M` | **CC-BY-NC-4.0** | Hugging Face API tags |
+| `Xenova/m2m100_418M` | **MIT** | Replacement for nllb-200 (Original Model facebook/m2m100_418M) |
+| `Xenova/nllb-200-distilled-600M` (Deprecated) | **CC-BY-NC-4.0** | Hugging Face API tags |
 | `Xenova/all-MiniLM-L6-v2` | **Apache-2.0** | Hugging Face API tags |
 | `openai/privacy-filter` | **Apache-2.0** | Hugging Face API tags |
 
