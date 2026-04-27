@@ -77,9 +77,78 @@ Create a `netlify.toml` file in the root of your repository:
 
 ## 3. PWA and Offline Support
 
-The application is bundled with `vite-plugin-pwa` to enable offline capability.
-* When the site is loaded, the service worker caches the `index.html`, CSS, JS, and the large WASM files (`.wasm`).
-* Once cached, users can run the entire topic modeling pipeline locally without an active internet connection.
-* The ONNX AI models downloaded from HuggingFace are natively cached in the browser's Cache API by `transformers.js`.
+Because the application runs entirely client-side, it is incredibly well-suited for completely offline usage.
+
+The application is bundled with `vite-plugin-pwa` to enable this:
+* Upon the first visit, a Service Worker installs and caches the `index.html`, CSS, JS, and the large WebAssembly (`.wasm`) binaries.
+* The ONNX AI models (e.g., embeddings, ABSA, LLMs) downloaded via `@huggingface/transformers` are natively cached in the browser's Cache API upon their first execution.
+* Users can "Install" the application to their device (via Chrome/Edge). Once installed and the models are downloaded once, **the application can be used forever without an internet connection**. No data is ever sent to a server.
 
 Ensure your host serves the `manifest.webmanifest` and `sw.js` files with correct MIME types (`application/manifest+json` and `application/javascript`).
+
+## 4. Desktop Deployment (Electron)
+
+If you want to distribute the Edge-Native Topic Modeler as a standalone desktop application (Windows, macOS, Linux) without relying on a web browser, you can wrap the static build output in an **Electron** shell.
+
+### Creating an Electron Wrapper
+
+1. Create a new directory for the Electron app and initialize it:
+   ```bash
+   mkdir percolo-desktop && cd percolo-desktop
+   npm init -y
+   npm install electron --save-dev
+   ```
+
+2. Copy the `ui/dist` folder from your build step into this new directory.
+
+3. Create a `main.js` file to bootstrap the Electron window. **Crucially**, you must instruct Electron to bypass specific security policies or intercept headers to enable `SharedArrayBuffer` for the WASM threads.
+
+```javascript
+const { app, BrowserWindow, session } = require('electron');
+const path = require('path');
+
+function createWindow () {
+  const mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  // Inject Cross-Origin-Isolation headers to enable SharedArrayBuffer for WASM threads
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Cross-Origin-Opener-Policy': ['same-origin'],
+        'Cross-Origin-Embedder-Policy': ['require-corp']
+      }
+    });
+  });
+
+  // Load the Vite build output
+  mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+}
+
+app.whenReady().then(createWindow);
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+```
+
+4. Update the `package.json` of your Electron app to point to `main.js`:
+   ```json
+   "main": "main.js",
+   "scripts": {
+     "start": "electron ."
+   }
+   ```
+
+5. Run `npm start` to launch the standalone desktop application.
+
+*(Note: If you plan to distribute the Electron app, consider using `electron-builder` or `electron-forge` to package it into `.exe`, `.dmg`, or `.AppImage` files.)*
