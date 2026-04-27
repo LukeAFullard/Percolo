@@ -239,22 +239,49 @@ async function runPipeline(documents: string[], config?: any) {
         payload: { phase: 'clustering', status: 'completed' }
       });
   } else {
+      const MAX_SAMPLED_DOCS = 2500;
+      const isSampling = embeddings.length > MAX_SAMPLED_DOCS;
+
+      let sampledIndices: number[] = [];
+      let sampledEmbeddings: number[][] = [];
+      let unSampledIndices: number[] = [];
+
+      if (isSampling) {
+         ctx.postMessage({
+            type: 'PROGRESS',
+            payload: { phase: 'umap', status: 'running', message: `Dataset is large. Sampling ${MAX_SAMPLED_DOCS} docs for clustering...` }
+         });
+         // Simple random sampling
+         const indices = Array.from({ length: embeddings.length }, (_, i) => i);
+         for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+         }
+         sampledIndices = indices.slice(0, MAX_SAMPLED_DOCS);
+         unSampledIndices = indices.slice(MAX_SAMPLED_DOCS);
+         sampledEmbeddings = sampledIndices.map(i => embeddings[i]);
+      } else {
+         sampledIndices = Array.from({ length: embeddings.length }, (_, i) => i);
+         sampledEmbeddings = embeddings;
+      }
+
       const umapCache = await PipelineCache.loadCheckpoint(cacheKeyUmap);
-      if (umapCache && umapCache.data) {
+      let sampledReducedEmbeddings: number[][] = [];
+
+      if (umapCache && umapCache.data && !isSampling) {
         ctx.postMessage({
           type: 'PROGRESS',
           payload: { phase: 'umap', status: 'completed', message: 'Loaded UMAP projection from cache.' }
         });
-        reducedEmbeddings = umapCache.data;
+        sampledReducedEmbeddings = umapCache.data;
       } else {
         ctx.postMessage({
           type: 'PROGRESS',
           payload: { phase: 'umap', status: 'running', message: 'Reducing dimensions...' }
         });
 
-        const nEpochs = 500; // Default number of epochs for UMAP. Might want to pass this down in options.
-        reducedEmbeddings = await UMAPReducer.reduceAsync(embeddings, {}, (epoch) => {
-          // Report progress periodically to avoid flooding message queue
+        const nEpochs = 500;
+        sampledReducedEmbeddings = await UMAPReducer.reduceAsync(sampledEmbeddings, {}, (epoch) => {
           if (epoch % 10 === 0) {
             const progressPercent = Math.round((epoch / nEpochs) * 100);
             ctx.postMessage({
@@ -264,7 +291,7 @@ async function runPipeline(documents: string[], config?: any) {
           }
         });
 
-        await PipelineCache.saveCheckpoint(cacheKeyUmap, 'umap', reducedEmbeddings);
+        if (!isSampling) await PipelineCache.saveCheckpoint(cacheKeyUmap, 'umap', sampledReducedEmbeddings);
 
         ctx.postMessage({
           type: 'PROGRESS',
@@ -273,28 +300,102 @@ async function runPipeline(documents: string[], config?: any) {
       }
 
       const clusteringCache = await PipelineCache.loadCheckpoint(cacheKeyClustering);
-      if (clusteringCache && clusteringCache.data) {
+      let sampledClusteringResult: any;
+      if (clusteringCache && clusteringCache.data && !isSampling) {
         ctx.postMessage({
           type: 'PROGRESS',
           payload: { phase: 'clustering', status: 'completed', message: 'Loaded clustering from cache.' }
         });
-        clusteringResult = clusteringCache.data;
+        sampledClusteringResult = clusteringCache.data;
       } else {
         ctx.postMessage({
           type: 'PROGRESS',
           payload: { phase: 'clustering', status: 'running', message: 'Clustering documents...' }
         });
 
-        clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings, {
+        sampledClusteringResult = await ClusteringEngine.clusterAsync(sampledReducedEmbeddings, {
             useLowMemoryFallback: config?.useLowMemoryFallback
         });
-        await PipelineCache.saveCheckpoint(cacheKeyClustering, 'clustering', clusteringResult);
+        if (!isSampling) await PipelineCache.saveCheckpoint(cacheKeyClustering, 'clustering', sampledClusteringResult);
 
         ctx.postMessage({
           type: 'PROGRESS',
           payload: { phase: 'clustering', status: 'completed' }
         });
       }
+
+      let finalLabelsArray = new Array(embeddings.length).fill(-1);
+      const probabilities = new Array(embeddings.length).fill(0);
+      reducedEmbeddings = new Array(embeddings.length).fill([0, 0]);
+
+      // Map sampled results back
+      const sampledLabels = Array.isArray(sampledClusteringResult.labels) ? sampledClusteringResult.labels : Array.from(sampledClusteringResult.labels);
+      for (let i = 0; i < sampledIndices.length; i++) {
+         const globalIdx = sampledIndices[i];
+         finalLabelsArray[globalIdx] = sampledLabels[i];
+         probabilities[globalIdx] = sampledClusteringResult.probabilities[i];
+         reducedEmbeddings[globalIdx] = sampledReducedEmbeddings[i];
+      }
+
+      if (isSampling) {
+         ctx.postMessage({
+           type: 'PROGRESS',
+           payload: { phase: 'clustering', status: 'running', message: 'Partial fitting remaining documents...' }
+         });
+
+         const { Centroids: LocalCentroids } = await import('../math/centroids');
+         const { InferenceEngine } = await import('../nlp/inference');
+
+         // Calculate centroids of the sampled set
+         const sampledCentroids = LocalCentroids.calculate(sampledEmbeddings, sampledLabels as number[]);
+
+         // Infer remaining
+         const unSampledEmbeddings = unSampledIndices.map(i => embeddings[i]);
+         const inferenceResults = InferenceEngine.transform(unSampledEmbeddings, sampledCentroids);
+
+         // First, compute 2D UMAP centroids for the sampled clusters to use as fallbacks
+         const umapCentroids = new Map<number, number[]>();
+         const clusterSizes = new Map<number, number>();
+
+         for (let i = 0; i < sampledIndices.length; i++) {
+             const label = sampledLabels[i];
+             const coords = sampledReducedEmbeddings[i];
+             if (label !== -1) {
+                 const current = umapCentroids.get(label) || [0, 0];
+                 const count = clusterSizes.get(label) || 0;
+                 umapCentroids.set(label, [current[0] + coords[0], current[1] + coords[1]]);
+                 clusterSizes.set(label, count + 1);
+             }
+         }
+
+         for (const [label, sumCoords] of umapCentroids.entries()) {
+             const count = clusterSizes.get(label)!;
+             umapCentroids.set(label, [sumCoords[0] / count, sumCoords[1] / count]);
+         }
+
+         for (let i = 0; i < unSampledIndices.length; i++) {
+             const globalIdx = unSampledIndices[i];
+             const res = inferenceResults[i];
+
+             // If similarity is low, treat as outlier
+             const label = res.similarity >= 0.5 ? res.label : -1;
+             finalLabelsArray[globalIdx] = label;
+             probabilities[globalIdx] = res.similarity;
+
+             // Approximate UMAP coordinate using the cluster's 2D centroid
+             if (label !== -1 && umapCentroids.has(label)) {
+                 // Add a tiny bit of random jitter so points don't stack perfectly
+                 const centroid = umapCentroids.get(label)!;
+                 const jitterX = (Math.random() - 0.5) * 0.1;
+                 const jitterY = (Math.random() - 0.5) * 0.1;
+                 reducedEmbeddings[globalIdx] = [centroid[0] + jitterX, centroid[1] + jitterY];
+             } else {
+                 reducedEmbeddings[globalIdx] = [0, 0]; // True outliers can stay near origin or be hidden
+             }
+         }
+      }
+
+      clusteringResult = { labels: finalLabelsArray, probabilities };
   }
 
   // We need to reassemble labels into a regular array to use safely with the LexicalExtractor
