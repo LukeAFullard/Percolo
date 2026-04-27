@@ -1,0 +1,58 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Install UI Dependencies
+        working-directory: ./ui
+        run: npm ci
+
+      - name: Build Headless Engine
+        run: npm run build
+
+      - name: Build Frontend Application
+        working-directory: ./ui
+        run: npm run build
+
+      # The following step handles the actual deployment to Cloudflare Pages.
+      # It is currently commented out as the app is not fully ready for production publishing yet.
+      #
+      # To enable this in the future:
+      # 1. Create a Cloudflare Pages project.
+      # 2. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to your GitHub repository secrets.
+      # 3. Uncomment the block below.
+      #
+      # - name: Deploy to Cloudflare Pages
+      #   uses: cloudflare/pages-action@v1
+      #   with:
+      #     apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      #     accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      #     projectName: edge-native-topic-modeler
+      #     directory: ui/dist
+      #     # Set to 'production' for pushes to main, otherwise creates a preview deployment
+      #     branch: main
