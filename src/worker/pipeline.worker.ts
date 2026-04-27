@@ -17,6 +17,7 @@ import { CrossLingualTranslator } from '../nlp/translation';
 import { ABSAEngine } from '../nlp/absa';
 import { KeyphraseExtractor } from '../nlp/keyphrase';
 import { Similarity } from '../math/similarity';
+import { NLPAnalytics } from '../nlp/analytics';
 
 import { IncrementalUpdater } from '../nlp/incremental';
 
@@ -36,6 +37,33 @@ ctx.onmessage = async (event: MessageEvent) => {
     try {
       const { documents } = payload;
       await runPipeline(documents);
+    } catch (error: any) {
+      ctx.postMessage({
+        type: 'ERROR',
+        payload: { message: error.message }
+      });
+    }
+  } else if (type === 'RUN_SEARCH') {
+    try {
+      const { query, documentEmbeddings, config } = payload;
+
+      const queryEmbeddingArr = await EmbeddingPipeline.embedTexts([query], config);
+      const queryEmbedding = queryEmbeddingArr[0];
+
+      const similarities = documentEmbeddings.map((docEmb: number[], index: number) => {
+          return {
+              docIndex: index,
+              similarity: Similarity.cosine(queryEmbedding, docEmb)
+          };
+      });
+
+      // Sort by highest similarity
+      similarities.sort((a: any, b: any) => b.similarity - a.similarity);
+
+      ctx.postMessage({
+        type: 'SEARCH_RESULT',
+        payload: similarities
+      });
     } catch (error: any) {
       ctx.postMessage({
         type: 'ERROR',
@@ -339,6 +367,7 @@ async function runPipeline(documents: string[], config?: any) {
 
   let topWordsPerTopic: any[] = [];
   let hoverSummaries: string[] = [];
+  let topicAnalytics: any[] = [];
 
   if (lexicalResult.matrix) {
     // If Custom Stopwords are provided, zero out their frequencies so they aren't extracted
@@ -439,6 +468,26 @@ async function runPipeline(documents: string[], config?: any) {
             }
         }
         summariesMap.set(label, [finalSummary]);
+
+        // Run general analytics (Sentiment & Entities) if configured
+        if (config?.runAnalytics) {
+            const docAnalytics = NLPAnalytics.processDocument(text);
+            // Append short info to hover summary
+            const sentimentStr = docAnalytics.sentiment > 0 ? 'Positive' : docAnalytics.sentiment < 0 ? 'Negative' : 'Neutral';
+            const extraLines = [];
+            extraLines.push(`General Sentiment: ${sentimentStr} (${docAnalytics.sentiment.toFixed(2)})`);
+            if (docAnalytics.entities.dates.length > 0) extraLines.push(`Dates: ${docAnalytics.entities.dates.slice(0,3).join(', ')}`);
+            if (docAnalytics.entities.money.length > 0) extraLines.push(`Money: ${docAnalytics.entities.money.slice(0,3).join(', ')}`);
+
+            const lines = summariesMap.get(label) || [];
+            lines.push(...extraLines);
+            summariesMap.set(label, lines);
+
+            topicAnalytics.push({
+               label,
+               analytics: docAnalytics
+            });
+        }
 
         // Generative Topic Labeling
         if (config?.useGenerativeSummarization && summarizer instanceof GenerativeSummarizer) {
@@ -645,6 +694,7 @@ async function runPipeline(documents: string[], config?: any) {
     hoverSummaries: hoverSummaries,
     uniqueClasses: lexicalResult.uniqueClasses,
     umap: outUmap, // Note: UMAP and Distributions might still be at chunk level. They can be rolled up later if needed, but for now parent labels solve the export issue.
+    embeddings: outEmbeddings, // Included to drive Semantic Search
     topicWords: topWordsPerTopic, // Included to drive the TopicBarchart
     similarityMatrix: similarityMatrix, // Included to drive Heatmap
     documentDistributions: documentDistributions // Included to drive Fuzzy Distribution Barchart
@@ -655,13 +705,17 @@ async function runPipeline(documents: string[], config?: any) {
     const reportData = {
         totalDocuments: documents.length,
         coherenceScore: coherenceScore,
-        topics: lexicalResult.uniqueClasses.map((label, idx) => ({
-            id: label,
-            name: topWordsPerTopic[idx].slice(0, 3).map((w: any) => w.word).join(', '),
-            size: topicSizes[idx],
-            words: topWordsPerTopic[idx],
-            summary: hoverSummaries[idx]
-        }))
+        topics: lexicalResult.uniqueClasses.map((label, idx) => {
+            const analyticsItem = topicAnalytics.find(a => a.label === label);
+            return {
+                id: label,
+                name: topWordsPerTopic[idx].slice(0, 3).map((w: any) => w.word).join(', '),
+                size: topicSizes[idx],
+                words: topWordsPerTopic[idx],
+                summary: hoverSummaries[idx],
+                analytics: analyticsItem ? analyticsItem.analytics : null
+            };
+        })
     };
     finalPayload.reportData = reportData;
 
