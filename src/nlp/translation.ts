@@ -19,7 +19,7 @@ export class CrossLingualTranslator {
    */
   static async getInstance(options: TranslatorOptions = {}): Promise<TranslationPipeline> {
     const {
-      modelName = 'Xenova/nllb-200-distilled-600M',
+      modelName = 'Xenova/m2m100_418M',
       precision = 'q8' // Default to quantized to survive browser limits
     } = options;
 
@@ -52,11 +52,12 @@ export class CrossLingualTranslator {
    * Translates a list of topic labels or sentences from a source language to a target language.
    *
    * Note for NLLB models: Language codes must follow FLORES-200 formats (e.g., eng_Latn, fra_Latn).
+   * Note for m2m100 models: Language codes must be 2-letter codes (e.g., en, fr).
    */
   static async translate(texts: string[], options: TranslatorOptions = {}): Promise<string[]> {
     if (!texts || texts.length === 0) return [];
 
-    const { srcLang, tgtLang = 'eng_Latn' } = options;
+    const { srcLang, tgtLang = 'en' } = options;
     const translator = await this.getInstance(options);
 
     // Some models like m2m100 or nllb require explicit language hints.
