@@ -4,6 +4,7 @@ import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap } f
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { TopicBarchart } from './components/TopicBarchart';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
+import { DynamicTopicModeling } from './components/DynamicTopicModeling';
 import { DocumentDistribution } from './components/DocumentDistribution';
 import { FileParser } from '@src/io/fileParser';
 import { ReportGenerator } from '@src/io/report';
@@ -12,7 +13,7 @@ import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 
 
 function App() {
-  const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize' | 'inference' | 'settings'>('upload');
+  const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize' | 'inference' | 'search' | 'settings'>('upload');
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
   const [settings, setSettings] = React.useState({
@@ -23,6 +24,7 @@ function App() {
     zeroShotCategories: '',
     tgtLang: '',
     runABSA: false,
+    runAnalytics: false,
     useKeyBERT: false,
     customStopWords: '',
     targetTopicCount: '',
@@ -62,10 +64,14 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelParsingRef = useRef(false);
 
-  const { runPipeline, runInference, isProcessing, progress, results, error } = usePercolo();
+  const { runPipeline, runInference, runSearch, isProcessing, progress, results, error } = usePercolo();
   const [inferenceText, setInferenceText] = React.useState('');
   const [inferenceResult, setInferenceResult] = React.useState<{label: number, similarity: number, topicName: string} | null>(null);
   const [isInferring, setIsInferring] = React.useState(false);
+
+  const [searchText, setSearchText] = React.useState('');
+  const [searchResults, setSearchResults] = React.useState<{docIndex: number, similarity: number}[] | null>(null);
+  const [isSearching, setIsSearching] = React.useState(false);
 
   const traverseFileTree = async (item: unknown, path: string = '', filesToProcess: File[] = []) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -201,6 +207,7 @@ function App() {
       zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
       tgtLang: settings.tgtLang.trim() || undefined,
       runABSA: settings.runABSA,
+      runAnalytics: settings.runAnalytics,
       useKeyBERT: settings.useKeyBERT,
       customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
       targetTopicCount: !isNaN(targetTopicCountNum) && targetTopicCountNum > 0 ? targetTopicCountNum : undefined,
@@ -411,6 +418,18 @@ function App() {
           >
             <Zap className="w-5 h-5" />
             Live Inference
+          </button>
+
+          <button
+            onClick={() => setActiveTab('search')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+              activeTab === 'search'
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Semantic Search
           </button>
 
         </nav>
@@ -633,6 +652,19 @@ function App() {
                       </div>
                     </label>
 
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.runAnalytics}
+                        onChange={(e) => setSettings(prev => ({ ...prev, runAnalytics: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Basic NLP Analytics</span>
+                        <span className="block text-sm text-slate-500">Extracts general sentiment and entities (Dates, Emails, Money) per topic.</span>
+                      </div>
+                    </label>
+
                     <div className="flex flex-col gap-2">
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input
@@ -773,6 +805,90 @@ function App() {
           </div>
         )}
 
+        {activeTab === 'search' && (
+          <div className="flex-1 p-8 overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Semantic Search</h2>
+                <p className="text-slate-500">Query your documents using natural language to find the most conceptually relevant texts.</p>
+              </div>
+
+              {!results || !results.embeddings ? (
+                 <div className="p-8 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-200 dark:border-blue-800 text-center">
+                    Please run the pipeline first to generate document embeddings.
+                 </div>
+              ) : (
+                <div className="space-y-6">
+                    <input
+                      type="text"
+                      className="w-full p-4 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      placeholder="Search for a concept or question (e.g. 'How do neural networks work?')..."
+                      onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !isSearching && searchText.trim().length > 0) {
+                              const doSearch = async () => {
+                                 setIsSearching(true);
+                                 try {
+                                     const res = await runSearch(searchText, buildPipelineConfig());
+                                     setSearchResults(res);
+                                 } finally {
+                                     setIsSearching(false);
+                                 }
+                              };
+                              doSearch();
+                          }
+                      }}
+                    />
+
+                    <button
+                      onClick={async () => {
+                         setIsSearching(true);
+                         try {
+                             const res = await runSearch(searchText, buildPipelineConfig());
+                             setSearchResults(res);
+                         } finally {
+                             setIsSearching(false);
+                         }
+                      }}
+                      disabled={isSearching || searchText.trim().length === 0}
+                      className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium shadow-sm"
+                    >
+                      {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>}
+                      Search
+                    </button>
+
+                    {searchResults && searchResults.length > 0 && (
+                        <div className="space-y-4 mt-8">
+                             <h3 className="text-lg font-semibold mb-4">Top Results</h3>
+                             {searchResults.slice(0, 5).map((result, idx) => (
+                               <div key={idx} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                  <div className="flex justify-between items-start mb-2">
+                                     <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded">Rank {idx + 1}</span>
+                                     <span className="text-xs text-slate-500">Similarity: {(result.similarity * 100).toFixed(1)}%</span>
+                                  </div>
+                                  <div className="text-sm text-slate-800 dark:text-slate-200">
+                                      {docs[result.docIndex]}
+                                  </div>
+                                  {results.labels && (
+                                      <div className="text-xs text-slate-500 mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                                          Topic: {
+                                              results.uniqueClasses.indexOf(results.labels[result.docIndex]) !== -1
+                                                ? results.topicLabels[results.uniqueClasses.indexOf(results.labels[result.docIndex])]
+                                                : results.labels[result.docIndex]
+                                          }
+                                      </div>
+                                  )}
+                               </div>
+                             ))}
+                        </div>
+                    )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'inference' && (
           <div className="flex-1 p-8 overflow-y-auto">
             <div className="max-w-4xl mx-auto space-y-6">
@@ -888,6 +1004,16 @@ function App() {
                                   : mockDocumentDistributions[selectedDocIndex % 3]
                               }
                               topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                          />
+                      </div>
+                  )}
+
+                  {results && results.labels && (
+                      <div className="min-h-[400px]">
+                          <DynamicTopicModeling
+                              documentLabels={results.labels}
+                              uniqueClasses={results.uniqueClasses}
+                              topicLabels={results.topicLabels}
                           />
                       </div>
                   )}

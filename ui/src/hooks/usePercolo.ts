@@ -67,9 +67,23 @@ export function usePercolo() {
     return await orchestratorRef.current.runInference(document, config);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runSearch = async (query: string, config?: any) => {
+    if (!orchestratorRef.current) {
+        setError("Pipeline engine not initialized.");
+        return null;
+    }
+    if (!results || !results.embeddings) {
+        setError("Document embeddings not found. Please run the pipeline first.");
+        return null;
+    }
+    return await orchestratorRef.current.runSearch(query, results.embeddings, config);
+  };
+
   return {
     runPipeline,
     runInference,
+    runSearch,
     isProcessing,
     progress,
     results,

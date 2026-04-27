@@ -196,6 +196,32 @@ export class PipelineOrchestrator {
     });
   }
 
+  public runSearch(query: string, documentEmbeddings: number[][], config?: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.worker) {
+        reject(new Error('Worker not initialized'));
+        return;
+      }
+
+      const listener = (event: MessageEvent) => {
+         const msg = event.data;
+         if (msg.type === 'SEARCH_RESULT') {
+            this.worker?.removeEventListener('message', listener);
+            resolve(msg.payload);
+         } else if (msg.type === 'ERROR') {
+            this.worker?.removeEventListener('message', listener);
+            reject(new Error(msg.payload.message));
+         }
+      };
+
+      this.worker.addEventListener('message', listener);
+      this.worker.postMessage({
+        type: 'RUN_SEARCH',
+        payload: { query, documentEmbeddings, config }
+      });
+    });
+  }
+
   public runInference(document: string, config?: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.worker) {
