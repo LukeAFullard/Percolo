@@ -44,6 +44,23 @@ describe('GenerativeSummarizer', () => {
     GenerativeSummarizer.getInstance = originalGetInstance;
   });
 
+  it('should generate a topic label using a mock Micro-LLM', async () => {
+    const summarizer = new GenerativeSummarizer();
+    const originalGetInstance = GenerativeSummarizer.getInstance;
+
+    GenerativeSummarizer.getInstance = async () => {
+        return (async (prompt: string, options: any) => {
+            return [{ generated_text: "\"Space Exploration\"" }];
+        }) as any;
+    };
+
+    const label = await summarizer.generateTopicLabel(["mars", "rover", "nasa", "orbit"]);
+    // Should strip quotes
+    expect(label).toBe("Space Exploration");
+
+    GenerativeSummarizer.getInstance = originalGetInstance;
+  });
+
   it('SummarizationEngine should implement ISummarizer correctly', async () => {
     const engine = new SummarizationEngine();
     const result = await engine.summarize("This is sentence one. This is sentence two.", { topK: 1 });

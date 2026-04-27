@@ -5,6 +5,7 @@ import type { PipelineProgress } from '../../../src/worker/orchestrator';
 export function usePercolo() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<PipelineProgress | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +24,7 @@ export function usePercolo() {
           // results would usually come here or via a separate RESULT message
         } else if (prog.phase === 'result' && prog.status === 'completed') {
           // Store actual payload in results
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setResults((prog as any).payload);
           setIsProcessing(false);
         } else if (prog.status === 'error') {
