@@ -1,5 +1,5 @@
 {
-  "name": "percolo",
+  "name": "edge-native-topic-modeler",
   "version": "0.1.0",
   "description": "An edge-native Topic Modeling pipeline designed to run entirely in the browser using WASM and WebGPU.",
   "main": "dist/index.js",
@@ -13,16 +13,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LukeAFullard/Percolo.git"
+    "url": "git+https://github.com/LukeAFullard/edge-native-topic-modeler.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/LukeAFullard/Percolo/issues"
+    "url": "https://github.com/LukeAFullard/edge-native-topic-modeler/issues"
   },
-  "homepage": "https://github.com/LukeAFullard/Percolo#readme",
+  "homepage": "https://github.com/LukeAFullard/edge-native-topic-modeler#readme",
   "devDependencies": {
     "@types/node": "^25.6.0",
     "fake-indexeddb": "^6.2.5",

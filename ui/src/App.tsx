@@ -302,7 +302,7 @@ function App() {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `percolo_report_${new Date().toISOString().split('T')[0]}.html`;
+    a.download = `topic_modeling_report_${new Date().toISOString().split('T')[0]}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -334,7 +334,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `percolo_data_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `topic_modeling_data_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -365,7 +365,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `percolo_rag_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `topic_modeling_rag_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -379,7 +379,7 @@ function App() {
         <div className="p-4 border-b border-slate-200 dark:border-slate-700">
           <h1 className="text-xl font-bold flex items-center gap-2">
             <BarChart2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            Percolo
+            Topic Modeler
           </h1>
           <p className="text-xs text-slate-500 mt-1">Edge-Native Topic Modeling</p>
         </div>
