@@ -35,6 +35,7 @@ describe('Golden Dataset Validation - End to End', () => {
     // Increase timeout significantly for e2e test downloading models
     it('should correctly cluster and extract topics for a 20NG subset', async () => {
         const start = performance.now();
+        const initialMemory = process.memoryUsage();
         console.log("Starting Golden Dataset validation...");
 
         // 1. Embeddings (using a fast, quantized model for testing)
@@ -105,6 +106,11 @@ describe('Golden Dataset Validation - End to End', () => {
         const wordsOnly = topicWords.map(topic => topic.map(w => w.word));
         const coherence = CoherenceMetrics.calculateNPMI(wordsOnly, tokenizedDocs);
         console.log(`Pipeline NPMI Coherence Mean Score: ${coherence.meanScore}`);
+
+        const finalMemory = process.memoryUsage();
+        const heapUsedDelta = (finalMemory.heapUsed - initialMemory.heapUsed) / 1024 / 1024;
+        console.log(`Memory Usage Delta (Heap Used): ${heapUsedDelta.toFixed(2)} MB`);
+
         // As long as it's a number and doesn't crash, the mathematical chain is proven.
         expect(typeof coherence.meanScore).toBe('number');
 

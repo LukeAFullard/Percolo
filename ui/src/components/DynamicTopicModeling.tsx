@@ -30,7 +30,7 @@ export const DynamicTopicModeling: React.FC<DynamicTopicModelingProps> = ({
   const binSize = Math.ceil(documentLabels.length / actualBinCount);
 
   // Calculate frequency of each topic per bin
-  const topicFrequencies = uniqueClasses.map(_cls => new Array(actualBinCount).fill(0));
+  const topicFrequencies = uniqueClasses.map(() => new Array(actualBinCount).fill(0));
 
   for (let i = 0; i < documentLabels.length; i++) {
       const label = documentLabels[i];
