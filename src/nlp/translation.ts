@@ -40,7 +40,7 @@ export class CrossLingualTranslator {
       console.warn(`Failed to initialize translator ${modelName} on WebGPU. Falling back to WASM/CPU (This will be extremely slow). Error: ${error}`);
       this.instance = await pipeline('translation', modelName, {
         dtype: precision as any,
-        device: 'wasm'
+        device: typeof window === 'undefined' ? 'cpu' : 'wasm'
       });
       this.currentModel = modelName;
     }
