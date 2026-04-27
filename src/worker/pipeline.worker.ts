@@ -105,6 +105,14 @@ function generateHash(strings: string[]): string {
 }
 
 async function runPipeline(documents: string[], config?: any) {
+  const { HardwareProfiler } = await import('./hardware');
+  const profile = HardwareProfiler.determineTier();
+  try {
+    await HardwareProfiler.validateCorpusSize(documents, profile);
+  } catch (error: any) {
+    throw new Error(`Hardware limit exceeded: ${error.message}`);
+  }
+
   let embeddings: number[][];
   let reducedEmbeddings: number[][];
   let clusteringResult: any;
@@ -168,7 +176,7 @@ async function runPipeline(documents: string[], config?: any) {
 
   // Phase 2: Embeddings
   const embeddingsCache = await PipelineCache.loadCheckpoint(cacheKeyEmbeddings);
-  if (embeddingsCache && embeddingsCache.data && !config?.seedWords) {
+  if (embeddingsCache && embeddingsCache.data) {
     ctx.postMessage({
       type: 'PROGRESS',
       payload: { phase: 'embeddings', status: 'completed', message: 'Loaded embeddings from cache.' }
@@ -182,28 +190,23 @@ async function runPipeline(documents: string[], config?: any) {
 
     embeddings = await EmbeddingPipeline.embedTexts(processedDocuments);
 
-    // If Guided Topic Modeling is active, prepend seed word embeddings
-    if (config?.seedWords) {
-       for (const seedList of config.seedWords) {
-           const seedText = seedList.join(' ');
-           const seedEmbeds = await EmbeddingPipeline.embedTexts([seedText]);
-           // In a full implementation, you inject these into the UMAP space or use them to pull centroids.
-           // For simplicity here, we prepend them to the embeddings array with a high weight or just append.
-           // HDBScan requires sufficient density, so we'll just log that seed words were processed for now,
-           // as true seeded topic modeling requires modifying the distance metric or clustering approach heavily.
-           // The simplest approach is prepending them and letting them guide the projection.
-           embeddings.unshift(seedEmbeds[0]);
-       }
-    }
-
-    if (!config?.seedWords) {
-        await PipelineCache.saveCheckpoint(cacheKeyEmbeddings, 'embeddings', embeddings);
-    }
+    await PipelineCache.saveCheckpoint(cacheKeyEmbeddings, 'embeddings', embeddings);
 
     ctx.postMessage({
       type: 'PROGRESS',
       payload: { phase: 'embeddings', status: 'completed' }
     });
+  }
+
+  let guidedLabels: number[] | null = null;
+  if (config?.seedWords && config.seedWords.length > 0) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'embeddings', status: 'running', message: 'Calculating Guided Topic Priors...' }
+      });
+      const { GuidedTopicModeling } = await import('../nlp/guided');
+      const priorResult = await GuidedTopicModeling.getPriors(embeddings, config.seedWords);
+      guidedLabels = priorResult.seedLabels;
   }
 
   // Phase 7: Memory Hygiene
@@ -282,7 +285,9 @@ async function runPipeline(documents: string[], config?: any) {
           payload: { phase: 'clustering', status: 'running', message: 'Clustering documents...' }
         });
 
-        clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings);
+        clusteringResult = await ClusteringEngine.clusterAsync(reducedEmbeddings, {
+            useLowMemoryFallback: config?.useLowMemoryFallback
+        });
         await PipelineCache.saveCheckpoint(cacheKeyClustering, 'clustering', clusteringResult);
 
         ctx.postMessage({
@@ -292,19 +297,29 @@ async function runPipeline(documents: string[], config?: any) {
       }
   }
 
-    // Phase 5: Lexical Extraction
+  // We need to reassemble labels into a regular array to use safely with the LexicalExtractor
+  let finalLabels = Array.isArray(clusteringResult.labels) ? clusteringResult.labels : Array.from(clusteringResult.labels);
+
+  // Merge guided labels into the HDBSCAN clustering results, avoiding overriding strong HDBSCAN clusters if possible,
+  // or simply override since seeded labels act as forced prior topic assignment in standard setups.
+  if (guidedLabels && guidedLabels.length === finalLabels.length) {
+       for (let i = 0; i < finalLabels.length; i++) {
+           if (guidedLabels[i] !== -1) {
+               // We assign the seed label as the topic class. To avoid collision with existing HDBSCAN numerical topics
+               // we can leave them, but ensure they don't collide. For now we use the seed indices directly.
+               // It may override existing topic numbers, but uniqueClasses will capture them.
+               finalLabels[i] = guidedLabels[i];
+               // Set high probability for guided assignments
+               clusteringResult.probabilities[i] = 1.0;
+           }
+       }
+  }
+
+  // Phase 5: Lexical Extraction
   ctx.postMessage({
     type: 'PROGRESS',
     payload: { phase: 'lexical', status: 'running', message: 'Extracting vocabulary and terms...' }
   });
-
-  // We need to reassemble labels into a regular array to use safely with the LexicalExtractor
-  let finalLabels = Array.isArray(clusteringResult.labels) ? clusteringResult.labels : Array.from(clusteringResult.labels);
-
-  // Remove the seed document labels from final representation if guided
-  if (config?.seedWords) {
-      finalLabels = finalLabels.slice(config.seedWords.length);
-  }
 
   let lexicalResult = LexicalExtractor.extract(processedDocuments, finalLabels as number[], {
      minDf: 2,
@@ -489,6 +504,30 @@ async function runPipeline(documents: string[], config?: any) {
             });
         }
 
+        // Deep NER Extraction if configured
+        if (config?.runNER) {
+            const { NEREngine } = await import('../nlp/ner');
+            const entities = await NEREngine.extractEntities(text);
+            if (entities.length > 0) {
+                 const topEntities = Array.from(new Set(entities.slice(0, 5).map(e => `${e.word} (${e.entity_group})`))).join(', ');
+                 const lines = summariesMap.get(label) || [];
+                 lines.push(`Named Entities: ${topEntities}`);
+                 summariesMap.set(label, lines);
+
+                 // Also attach to analytics metadata
+                 const currentAnalytics = topicAnalytics.find(a => a.label === label);
+                 if (currentAnalytics) {
+                     currentAnalytics.analytics.deepEntities = entities;
+                 } else {
+                     topicAnalytics.push({
+                         label,
+                         analytics: { deepEntities: entities }
+                     });
+                 }
+            }
+            await NEREngine.dispose(); // Release memory after
+        }
+
         // Generative Topic Labeling
         if (config?.useGenerativeSummarization && summarizer instanceof GenerativeSummarizer) {
             const keywords = topWordsPerTopic[i].slice(0, 5).map((w: any) => w.word);
@@ -583,19 +622,11 @@ async function runPipeline(documents: string[], config?: any) {
       }
   }
 
-  // Ensure we strip the prepended seed words from our data arrays before returning to UI
+  // Final arrays without seed prepending
   let outLabels = finalLabels;
   let outProbs = clusteringResult.probabilities;
   let outUmap = reducedEmbeddings;
   let outEmbeddings = embeddings;
-
-  if (config?.seedWords) {
-      const seedLen = config.seedWords.length;
-      // Note: finalLabels is already sliced earlier in the pipeline
-      outProbs = outProbs.slice(seedLen);
-      outUmap = outUmap.slice(seedLen);
-      outEmbeddings = outEmbeddings.slice(seedLen);
-  }
 
   // If chunking is enabled, roll up the chunk labels back to the parent document level
   // so the UI and exports match the original `documents` array.

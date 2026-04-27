@@ -45,10 +45,10 @@ export class ABSAEngine {
       });
       this.currentModel = modelName;
     } catch (error) {
-      console.warn(`Failed to initialize ABSA model ${modelName} on WebGPU. Falling back to WASM/CPU. Error: ${error}`);
+      console.warn(`Failed to initialize ABSA model ${modelName} on WebGPU. Falling back to CPU. Error: ${error}`);
       this.instance = await pipeline('text-classification', modelName, {
         dtype: precision as any,
-        device: 'wasm'
+        device: 'cpu'
       });
       this.currentModel = modelName;
     }
