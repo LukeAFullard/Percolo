@@ -58,8 +58,18 @@ export function usePercolo() {
     orchestratorRef.current.startPipeline(documents, config);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runInference = async (document: string, config?: any) => {
+    if (!orchestratorRef.current) {
+        setError("Pipeline engine not initialized.");
+        return null;
+    }
+    return await orchestratorRef.current.runInference(document, config);
+  };
+
   return {
     runPipeline,
+    runInference,
     isProcessing,
     progress,
     results,

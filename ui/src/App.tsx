@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { usePercolo } from './hooks/usePercolo';
-import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2 } from 'lucide-react';
+import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { TopicBarchart } from './components/TopicBarchart';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
@@ -12,7 +12,7 @@ import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 
 
 function App() {
-  const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize' | 'settings'>('upload');
+  const [activeTab, setActiveTab] = React.useState<'upload' | 'visualize' | 'inference' | 'settings'>('upload');
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
   const [settings, setSettings] = React.useState({
@@ -29,7 +29,10 @@ function App() {
     ngramRange: '1,1',
     posFilter: 'ALL',
     useBM25: false,
-    fuzzyClustering: false
+    fuzzyClustering: false,
+    useChunking: false,
+    chunkMaxTokens: 256,
+    chunkOverlapTokens: 50
   });
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
@@ -59,7 +62,10 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelParsingRef = useRef(false);
 
-  const { runPipeline, isProcessing, progress, results, error } = usePercolo();
+  const { runPipeline, runInference, isProcessing, progress, results, error } = usePercolo();
+  const [inferenceText, setInferenceText] = React.useState('');
+  const [inferenceResult, setInferenceResult] = React.useState<{label: number, similarity: number, topicName: string} | null>(null);
+  const [isInferring, setIsInferring] = React.useState(false);
 
   const traverseFileTree = async (item: unknown, path: string = '', filesToProcess: File[] = []) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -201,7 +207,10 @@ function App() {
       ngramRange: ngramRange.length === 2 && !isNaN(ngramRange[0]) && !isNaN(ngramRange[1]) ? ngramRange : [1, 1],
       posFilter: posFilter.length > 0 ? posFilter : undefined,
       useBM25: settings.useBM25,
-      fuzzyClustering: settings.fuzzyClustering
+      fuzzyClustering: settings.fuzzyClustering,
+      useChunking: settings.useChunking,
+      chunkMaxTokens: settings.chunkMaxTokens,
+      chunkOverlapTokens: settings.chunkOverlapTokens
     };
   };
 
@@ -390,6 +399,18 @@ function App() {
           >
             <BarChart2 className="w-5 h-5" />
             Visualization
+          </button>
+
+          <button
+            onClick={() => setActiveTab('inference')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+              activeTab === 'inference'
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <Zap className="w-5 h-5" />
+            Live Inference
           </button>
 
         </nav>
@@ -654,6 +675,33 @@ function App() {
                       </div>
                     </label>
 
+                    <div className="flex flex-col gap-2">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={settings.useChunking}
+                            onChange={(e) => setSettings(prev => ({ ...prev, useChunking: e.target.checked }))}
+                            className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="block font-medium">Semantic Document Chunking</span>
+                            <span className="block text-sm text-slate-500">Splits large documents into overlapping token chunks to fit within embedding context windows.</span>
+                          </div>
+                        </label>
+                        {settings.useChunking && (
+                          <div className="flex items-center gap-4 ml-7 mt-2">
+                             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                Max Tokens:
+                                <input type="number" value={settings.chunkMaxTokens} onChange={e => setSettings(prev => ({ ...prev, chunkMaxTokens: parseInt(e.target.value, 10) || 256 }))} className="w-20 p-1 border rounded dark:bg-slate-800 dark:border-slate-600 outline-none focus:ring-1 focus:ring-blue-500" />
+                             </label>
+                             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                Overlap:
+                                <input type="number" value={settings.chunkOverlapTokens} onChange={e => setSettings(prev => ({ ...prev, chunkOverlapTokens: parseInt(e.target.value, 10) || 50 }))} className="w-20 p-1 border rounded dark:bg-slate-800 dark:border-slate-600 outline-none focus:ring-1 focus:ring-blue-500" />
+                             </label>
+                          </div>
+                        )}
+                    </div>
+
                     <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50 space-y-4">
 
                         <div>
@@ -725,6 +773,69 @@ function App() {
           </div>
         )}
 
+        {activeTab === 'inference' && (
+          <div className="flex-1 p-8 overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Live Inference</h2>
+                <p className="text-slate-500">Test real-time assignment of new documents to discovered topics.</p>
+              </div>
+
+              {!results ? (
+                 <div className="p-8 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-200 dark:border-blue-800 text-center">
+                    Please run the pipeline first to discover topics.
+                 </div>
+              ) : (
+                <div className="space-y-6">
+                    <textarea
+                      className="w-full h-40 p-4 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow resize-y"
+                      value={inferenceText}
+                      onChange={(e) => setInferenceText(e.target.value)}
+                      placeholder="Type a sentence here (e.g. 'I bought some new tech stocks')..."
+                    />
+
+                    <button
+                      onClick={async () => {
+                         setIsInferring(true);
+                         try {
+                             const res = await runInference(inferenceText, buildPipelineConfig());
+                             if (res && res.length > 0) {
+                                 const idx = results.uniqueClasses.indexOf(res[0].label);
+                                 const tName = idx !== -1 ? results.topicLabels[idx] : `Topic ${res[0].label}`;
+                                 setInferenceResult({ ...res[0], topicName: tName });
+                             }
+                         } finally {
+                             setIsInferring(false);
+                         }
+                      }}
+                      disabled={isInferring || inferenceText.trim().length === 0}
+                      className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium shadow-sm"
+                    >
+                      {isInferring ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                      Predict Topic
+                    </button>
+
+                    {inferenceResult && (
+                        <div className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mt-8">
+                             <h3 className="text-lg font-semibold mb-4">Prediction Result</h3>
+                             <div className="grid grid-cols-2 gap-4">
+                                 <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                                     <div className="text-sm text-slate-500 mb-1">Assigned Topic</div>
+                                     <div className="text-xl font-medium text-slate-800 dark:text-slate-200">{inferenceResult.topicName}</div>
+                                 </div>
+                                 <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                                     <div className="text-sm text-slate-500 mb-1">Confidence (Cosine Similarity)</div>
+                                     <div className="text-xl font-medium text-slate-800 dark:text-slate-200">{(inferenceResult.similarity * 100).toFixed(1)}%</div>
+                                 </div>
+                             </div>
+                        </div>
+                    )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'visualize' && (
           <div className="flex-1 flex flex-col p-6 overflow-hidden bg-slate-50 dark:bg-slate-900/50">
             {isProcessing && progress ? (
@@ -771,7 +882,11 @@ function App() {
                   {selectedDocIndex !== null && (
                       <div className="min-h-[300px]">
                           <DocumentDistribution
-                              probabilities={results?.documentDistributions ? results.documentDistributions[selectedDocIndex] : mockDocumentDistributions[selectedDocIndex % 3]}
+                              probabilities={
+                                results
+                                  ? (results.documentDistributions ? results.documentDistributions[selectedDocIndex] : undefined)
+                                  : mockDocumentDistributions[selectedDocIndex % 3]
+                              }
                               topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
                           />
                       </div>
