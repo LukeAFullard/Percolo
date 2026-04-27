@@ -9,6 +9,7 @@ import { TopicReduction } from '../nlp/reduction';
 import { CoherenceMetrics } from '../math/coherence';
 import { CTFIDF } from '../math/ctfidf';
 import { SummarizationEngine } from '../nlp/summarization';
+import { DocumentChunker } from '../nlp/chunker';
 import { GenerativeSummarizer } from '../nlp/generative';
 import { PIIRedactor } from '../nlp/pii';
 import { ZeroShotClassifier } from '../nlp/zeroshot';
@@ -17,10 +18,15 @@ import { ABSAEngine } from '../nlp/absa';
 import { KeyphraseExtractor } from '../nlp/keyphrase';
 import { Similarity } from '../math/similarity';
 
+import { IncrementalUpdater } from '../nlp/incremental';
+
 // Declare standard web worker scope
 const ctx: Worker = self as any;
 
 ctx.postMessage({ type: 'READY' });
+
+// We cache our centroids in memory so inference is blazing fast
+let latestCentroids: Map<number, number[]> | null = null;
 
 ctx.onmessage = async (event: MessageEvent) => {
   const { type, payload } = event.data;
@@ -30,6 +36,25 @@ ctx.onmessage = async (event: MessageEvent) => {
     try {
       const { documents } = payload;
       await runPipeline(documents);
+    } catch (error: any) {
+      ctx.postMessage({
+        type: 'ERROR',
+        payload: { message: error.message }
+      });
+    }
+  } else if (type === 'RUN_INFERENCE') {
+    try {
+      if (!latestCentroids) {
+         throw new Error("Cannot run inference. You must run the pipeline first to compute topic centroids.");
+      }
+      const { document, config } = payload;
+      // We use IncrementalUpdater for a partial fit to map new document to existing topics
+      const results = await IncrementalUpdater.partialFit([document], latestCentroids, config);
+      await EmbeddingPipeline.dispose(); // maintain hygiene
+      ctx.postMessage({
+        type: 'INFERENCE_RESULT',
+        payload: results
+      });
     } catch (error: any) {
       ctx.postMessage({
         type: 'ERROR',
@@ -77,6 +102,36 @@ async function runPipeline(documents: string[], config?: any) {
         type: 'PROGRESS',
         payload: { phase: 'preprocessing', status: 'completed' }
       });
+  }
+
+  // Keep track of which parent document each chunk belongs to
+  let chunkToDocMap: number[] = [];
+
+  if (config?.useChunking) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'preprocessing', status: 'running', message: 'Chunking documents...' }
+      });
+      const chunkedDocs: string[] = [];
+      for (let i = 0; i < processedDocuments.length; i++) {
+         const doc = processedDocuments[i];
+         const chunks = DocumentChunker.chunkText(doc, {
+             maxTokens: config.chunkMaxTokens || 256,
+             overlapTokens: config.chunkOverlapTokens || 50
+         });
+         for (const chunk of chunks) {
+            chunkedDocs.push(chunk);
+            chunkToDocMap.push(i);
+         }
+      }
+      processedDocuments = chunkedDocs;
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'preprocessing', status: 'completed' }
+      });
+  } else {
+     // If not chunking, 1:1 mapping
+     chunkToDocMap = Array.from({length: processedDocuments.length}, (_, i) => i);
   }
 
   const cacheKeyEmbeddings = `${docHash}-embeddings`;
@@ -484,6 +539,56 @@ async function runPipeline(documents: string[], config?: any) {
       outEmbeddings = outEmbeddings.slice(seedLen);
   }
 
+  // If chunking is enabled, roll up the chunk labels back to the parent document level
+  // so the UI and exports match the original `documents` array.
+  // The simplest strategy is "majority vote" or just take the first valid label.
+  let finalParentLabels: any = outLabels;
+  let finalParentProbs: any = outProbs;
+  if (config?.useChunking) {
+      const parentLabels = new Array(documents.length).fill(-1);
+      const parentProbs = new Array(documents.length).fill(0);
+
+      const docVotes = new Map<number, Map<number, { count: number, maxProb: number }>>();
+
+      for (let i = 0; i < outLabels.length; i++) {
+         const docIdx = chunkToDocMap[i];
+         const label = outLabels[i] as number;
+         const prob = outProbs[i];
+
+         if (!docVotes.has(docIdx)) docVotes.set(docIdx, new Map());
+         const labelStats = docVotes.get(docIdx)!.get(label) || { count: 0, maxProb: 0 };
+         labelStats.count += 1;
+         labelStats.maxProb = Math.max(labelStats.maxProb, prob);
+         docVotes.get(docIdx)!.set(label, labelStats);
+      }
+
+      for (let i = 0; i < documents.length; i++) {
+         const votes = docVotes.get(i);
+         if (votes) {
+            let bestLabel = -1;
+            let highestCount = -1;
+            for (const [label, stats] of votes.entries()) {
+               if (label !== -1 && stats.count > highestCount) {
+                  highestCount = stats.count;
+                  bestLabel = label;
+               }
+            }
+            if (bestLabel === -1 && votes.has(-1)) {
+               bestLabel = -1;
+            }
+            parentLabels[i] = bestLabel;
+            parentProbs[i] = votes.get(bestLabel)?.maxProb || 0;
+         }
+      }
+
+      finalParentLabels = parentLabels;
+      finalParentProbs = parentProbs;
+  }
+
+  // Cache Centroids for Inference
+  const { Centroids: LocalCentroids } = await import('../math/centroids');
+  latestCentroids = LocalCentroids.calculate(outEmbeddings, outLabels as number[]);
+
   // Calculate Document Probability Distribution (Fuzzy assignments to topics)
   // Standard HDBSCAN gives a single membership probability.
   // To get a distribution across ALL topics for a document, we calculate softmaxed cosine similarities
@@ -495,8 +600,7 @@ async function runPipeline(documents: string[], config?: any) {
         payload: { phase: 'ctfidf', status: 'running', message: `Calculating fuzzy probability distributions...` }
       });
       // 1. Calculate Centroids
-      const { Centroids } = await import('../math/centroids');
-      const centroidsMap = Centroids.calculate(outEmbeddings, outLabels as number[]);
+      const centroidsMap = latestCentroids;
 
       // We need an ordered array of centroids matching the `uniqueClasses` indices
       const orderedCentroids: number[][] = [];
@@ -534,13 +638,13 @@ async function runPipeline(documents: string[], config?: any) {
 
 // Support graceful degradation for large results if SharedArrayBuffer/COOP is unavailable
   const finalPayload: any = {
-    labels: outLabels,
-    probabilities: outProbs,
+    labels: finalParentLabels, // Export parent labels to keep UI parity with original docs
+    probabilities: finalParentProbs,
     topicLabels: displayLabels,
     topicSizes: topicSizes,
     hoverSummaries: hoverSummaries,
     uniqueClasses: lexicalResult.uniqueClasses,
-    umap: outUmap,
+    umap: outUmap, // Note: UMAP and Distributions might still be at chunk level. They can be rolled up later if needed, but for now parent labels solve the export issue.
     topicWords: topWordsPerTopic, // Included to drive the TopicBarchart
     similarityMatrix: similarityMatrix, // Included to drive Heatmap
     documentDistributions: documentDistributions // Included to drive Fuzzy Distribution Barchart

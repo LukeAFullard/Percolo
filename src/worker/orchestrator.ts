@@ -196,6 +196,32 @@ export class PipelineOrchestrator {
     });
   }
 
+  public runInference(document: string, config?: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.worker) {
+        reject(new Error('Worker not initialized'));
+        return;
+      }
+
+      const listener = (event: MessageEvent) => {
+         const msg = event.data;
+         if (msg.type === 'INFERENCE_RESULT') {
+            this.worker?.removeEventListener('message', listener);
+            resolve(msg.payload);
+         } else if (msg.type === 'ERROR') {
+            this.worker?.removeEventListener('message', listener);
+            reject(new Error(msg.payload.message));
+         }
+      };
+
+      this.worker.addEventListener('message', listener);
+      this.worker.postMessage({
+        type: 'RUN_INFERENCE',
+        payload: { document, config }
+      });
+    });
+  }
+
   private runFallbackPipeline(_documents: string[], _config?: any) {
       if (this.onProgressCallback) {
           this.onProgressCallback({
