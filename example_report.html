@@ -5,40 +5,164 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edge-Native Topic Modeling Report</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+        <script>
+            window.reportData = {"topics":[{"id":0,"name":"successfully, landed, new","size":5,"words":[{"word":"successfully","score":2.7300291078209855},{"word":"landed","score":2.7300291078209855},{"word":"new","score":1.8523840910444898},{"word":"mars","score":1.5567576546051871},{"word":"rover","score":1.5567576546051871}],"analytics":{"sentiment":0.4575,"entities":{"dates":["today"],"emails":[],"money":[]}}},{"id":1,"name":"new, electric, vehicle","size":5,"words":[{"word":"new","score":1.8523840910444898},{"word":"electric","score":1.5567576546051871},{"word":"vehicle","score":1.5567576546051871},{"word":"features","score":1.5567576546051871},{"word":"range","score":1.5567576546051871}],"analytics":{"sentiment":-0.1162,"entities":{"dates":[],"emails":[],"money":[]}}},{"id":2,"name":"new, researchers, published","size":5,"words":[{"word":"new","score":1.8523840910444898},{"word":"researchers","score":1.037838436403458},{"word":"published","score":1.037838436403458},{"word":"groundbreaking","score":1.037838436403458},{"word":"study","score":1.037838436403458}],"analytics":{"sentiment":-0.010000000000000009,"entities":{"dates":[],"emails":[],"money":[]}}}],"umap":[[-4.5965574764636585,-1.6158002161827132],[-4.562203308559067,-2.3246588394755827],[-3.924410927399051,-1.584730564902653],[-3.6718350979310506,-2.098314520014371],[-4.1550203417630405,-2.58804445668866],[9.912891501445202,5.376447590073442],[10.446851854632376,-4.995951647691637],[10.42544362951512,4.866295328020585],[10.17952370694,5.1118125548536195],[10.34634158626014,-4.895502556682191],[-20.306594120381682,-3.712004276766231],[-21.054691171341254,-4.357808753389041],[-20.44339863188972,-4.2402555033155025],[-20.752364358498887,-3.47367198783924],[-20.886769380726903,-3.936276548225553]],"labels":[0,0,0,0,0,1,1,1,1,1,2,2,2,2,2]};
+        </script>
+
     <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: #f1f5f9; }
+        .report-container { max-w-5xl; margin: 2rem auto; }
+        .viz-card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); padding: 1.5rem; margin-top: 2rem; margin-bottom: 2rem; border: 1px solid #e2e8f0; }
+        .content-card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); padding: 3rem; border: 1px solid #e2e8f0; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-600 p-8">
-    <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-        <h1 class="text-3xl font-bold text-slate-800 mb-6">Topic Modeling Analysis Report</h1></p><p class="mb-4"><strong>Project:</strong> Example 20NG Subset<br>
-<strong>Total Documents Processed:</strong> 15<br>
-<strong>Total Topics Discovered:</strong> 3<br>
-<strong>Execution Time:</strong> 1.50 seconds<br></p><p class="mb-4"><hr class="my-8 border-slate-200"></p><p class="mb-4"><h2 class="text-2xl font-semibold text-slate-700 mt-8 mb-4 border-b pb-2">Discovered Topics</h2></p><p class="mb-4"><h3 class="text-xl font-medium text-slate-800 mt-6 mb-2">Topic 0: successfully, landed, new</h3>
-<li class="mb-1"><strong>Document Count:</strong> 5 (33.3% of corpus)</li>
-<li class="mb-1"><strong>General Sentiment:</strong> Positive (0.46)</li>
-<li class="mb-1"><strong>Extracted Dates:</strong> today</li>
-<li class="mb-1"><strong>Top Keywords (c-TF-IDF):**
-<li>successfully (2.7300)</li>
-<li>landed (2.7300)</li>
-<li>new (1.8524)</li>
-<li>mars (1.5568)</li>
-<li>rover (1.5568)</li></p><p class="mb-4"><h3 class="text-xl font-medium text-slate-800 mt-6 mb-2">Topic 1: new, electric, vehicle</h3>
-<p class="font-medium mt-2">Document Count:</strong> 5 (33.3% of corpus)</li>
-<li class="mb-1"><strong>General Sentiment:</strong> Negative (-0.12)</li>
-<li class="mb-1"><strong>Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-5 mb-4">
-<li>new (1.8524)</li>
-<li>electric (1.5568)</li>
-<li>vehicle (1.5568)</li>
-<li>features (1.5568)</li>
-<li>range (1.5568)</li></p><p class="mb-4"><h3 class="text-xl font-medium text-slate-800 mt-6 mb-2">Topic -1: Outlier / Noise</h3>
-<p class="font-medium mt-2">Document Count:</strong> 5 (33.3% of corpus)</li>
-- **Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-5 mb-4">
-<li>new (1.8524)</li>
-<li>researchers (1.0378)</li>
-<li>published (1.0378)</li>
-<li>groundbreaking (1.0378)</li>
-<li>study (1.0378)</li></p><p class="mb-4">
+<body class="text-slate-700 antialiased">
+    <div class="max-w-5xl mx-auto px-4 py-8">
+
+        <div class="content-card mb-8">
+            <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">Topic Modeling Analysis Report</h1><p class="text-lg text-slate-500 mb-8 pb-4 border-b">Generated by Edge-Native Topic Modeler</p></p><p class="mb-4"><strong class="text-slate-900">Project:</strong><span class="text-slate-600"> Example 20NG Subset</span><br>
+<strong class="text-slate-900">Total Documents Processed:</strong><span class="text-slate-600"> 15</span><br>
+<strong class="text-slate-900">Total Topics Discovered:</strong><span class="text-slate-600"> 3</span><br>
+<strong class="text-slate-900">Execution Time:</strong><span class="text-slate-600"> 1.50 seconds</span><br></p><p class="mb-4"></p><p class="mb-4">
+        </div>
+
+        <!-- Visualizations -->
+
+        <div class="viz-card">
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Document Clusters Map</h3>
+            <p class="text-sm text-slate-500 mb-4">Interactive 2D projection of the corpus using UMAP dimensionality reduction.</p>
+            <div id="umap-plot" style="width:100%; height:600px;"></div>
+        </div>
+
+        <div class="viz-card" id="barchart-container" style="display:none;">
+            <div id="barchart-plot" style="width:100%;"></div>
+        </div>
+
+
+        <div class="content-card">
+            <h2 class="text-3xl font-bold text-slate-800 mb-6 border-b pb-2">Topic Details</h2>
+            </p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 0: successfully, landed, new</h3>
+<li class="mb-2"><strong class="text-slate-800">Document Count:</strong> <span class="text-slate-600">5 (33.3% of corpus)</span></li>
+<li class="mb-2"><strong class="text-slate-800">General Sentiment:</strong> <span class="text-slate-600">Positive (0.46)</span></li>
+<li class="mb-2"><strong class="text-slate-800">Extracted Dates:</strong> <span class="text-slate-600">today</span></li>
+<li class="mb-2"><strong class="text-slate-800">Top Keywords (c-TF-IDF):**
+<li class="text-slate-600">successfully (2.7300)</li>
+<li class="text-slate-600">landed (2.7300)</li>
+<li class="text-slate-600">new (1.8524)</li>
+<li class="text-slate-600">mars (1.5568)</li>
+<li class="text-slate-600">rover (1.5568)</li></p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 1: new, electric, vehicle</h3>
+<p class="font-semibold text-slate-800 mt-4 mb-2">Document Count:</strong> <span class="text-slate-600">5 (33.3% of corpus)</span></li>
+<li class="mb-2"><strong class="text-slate-800">General Sentiment:</strong> <span class="text-slate-600">Negative (-0.12)</span></li>
+<li class="mb-2"><strong class="text-slate-800">Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-6 mb-6">
+<li class="text-slate-600">new (1.8524)</li>
+<li class="text-slate-600">electric (1.5568)</li>
+<li class="text-slate-600">vehicle (1.5568)</li>
+<li class="text-slate-600">features (1.5568)</li>
+<li class="text-slate-600">range (1.5568)</li></p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 2: new, researchers, published</h3>
+<p class="font-semibold text-slate-800 mt-4 mb-2">Document Count:</strong> <span class="text-slate-600">5 (33.3% of corpus)</span></li>
+<li class="mb-2"><strong class="text-slate-800">General Sentiment:</strong> <span class="text-slate-600">Negative (-0.01)</span></li>
+- **Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-6 mb-6">
+<li class="text-slate-600">new (1.8524)</li>
+<li class="text-slate-600">researchers (1.0378)</li>
+<li class="text-slate-600">published (1.0378)</li>
+<li class="text-slate-600">groundbreaking (1.0378)</li>
+<li class="text-slate-600">study (1.0378)</li></p><p class="mb-4">
+        </div>
+
     </div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const data = window.reportData;
+                if (!data.umap || data.umap.length === 0) return;
+
+                // 1. Render Intertopic Distance Map (UMAP Projection)
+                const x = data.umap.map(c => c[0]);
+                const y = data.umap.map(c => c[1]);
+
+                // Color mapping: generate distinct colors for distinct topic IDs
+                const uniqueLabels = [...new Set(data.labels)];
+                const colors = data.labels.map(label => {
+                   if (label === -1) return '#cbd5e1'; // noise is gray
+                   const index = uniqueLabels.indexOf(label);
+                   return `hsl(${(index * 137.508) % 360}, 70%, 50%)`;
+                });
+
+                const hoverText = data.labels.map(label => {
+                    if (label === -1) return "Noise";
+                    const topic = data.topics.find(t => t.id === label);
+                    return topic ? `Topic ${topic.id}: ${topic.name}` : `Topic ${label}`;
+                });
+
+                Plotly.newPlot('umap-plot', [{
+                    x: x,
+                    y: y,
+                    mode: 'markers',
+                    type: 'scatter',
+                    text: hoverText,
+                    hoverinfo: 'text',
+                    marker: {
+                        size: 10,
+                        color: colors,
+                        opacity: 0.8,
+                        line: { width: 0.5, color: 'white' }
+                    }
+                }], {
+                    title: 'Document Clusters (UMAP Projection)',
+                    hovermode: 'closest',
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: '#f8fafc',
+                    xaxis: { showgrid: true, zeroline: false, showticklabels: false, gridcolor: '#e2e8f0' },
+                    yaxis: { showgrid: true, zeroline: false, showticklabels: false, gridcolor: '#e2e8f0' },
+                    margin: { l: 20, r: 20, t: 40, b: 20 }
+                }, { responsive: true, displayModeBar: false });
+
+                // 2. Render Topic Bar Charts
+                // Get top 6 topics (excluding noise)
+                const topTopics = data.topics.filter(t => t.id !== -1).slice(0, 6);
+
+                const barChartData = topTopics.map((topic, i) => {
+                    const topWords = topic.words.slice(0, 10).reverse();
+                    return {
+                        type: 'bar',
+                        x: topWords.map(w => w.score),
+                        y: topWords.map(w => w.word),
+                        orientation: 'h',
+                        name: `Topic ${topic.id}`,
+                        xaxis: 'x' + (i === 0 ? '' : i + 1),
+                        yaxis: 'y' + (i === 0 ? '' : i + 1),
+                        marker: {
+                            color: `hsl(${(uniqueLabels.indexOf(topic.id) * 137.508) % 360}, 70%, 50%)`
+                        }
+                    };
+                });
+
+                // Layout grid for bar charts
+                const barLayout = {
+                    title: 'Top Keyword Scores (c-TF-IDF)',
+                    grid: {rows: Math.ceil(topTopics.length / 2), columns: 2, pattern: 'independent'},
+                    height: Math.ceil(topTopics.length / 2) * 300,
+                    showlegend: false,
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: 'transparent',
+                    margin: { l: 100, r: 20, t: 50, b: 40 }
+                };
+
+                // Format axes dynamically based on how many subplots we generated
+                for(let i=0; i < topTopics.length; i++) {
+                   const suffix = i === 0 ? '' : i+1;
+                   barLayout['xaxis' + suffix] = { showticklabels: false, showgrid: false };
+                   barLayout['yaxis' + suffix] = { automargin: true };
+                }
+
+                if (topTopics.length > 0) {
+                    document.getElementById('barchart-container').style.display = 'block';
+                    Plotly.newPlot('barchart-plot', barChartData, barLayout, { responsive: true, displayModeBar: false });
+                }
+            });
+        </script>
+
 </body>
 </html>

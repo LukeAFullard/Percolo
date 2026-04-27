@@ -115,7 +115,9 @@ async function main() {
       projectName: "Example 20NG Subset",
       totalDocuments: documents.length,
       topics: topics,
-      executionTimeMs: 1500
+      executionTimeMs: 1500,
+      umap: umapCoords,
+      labels: Array.from(clustering.labels)
   };
 
   console.log("Generating report...");
