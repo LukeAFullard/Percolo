@@ -19,6 +19,7 @@ function App() {
     seedWords: '',
     useGenerativeSummarization: false,
     redactPII: false,
+    useAIPrivacyFilter: false,
     zeroShotCategories: '',
     tgtLang: '',
     runABSA: false,
@@ -190,6 +191,7 @@ function App() {
       seedWords: seedWordsList.length > 0 ? [seedWordsList] : undefined,
       useGenerativeSummarization: settings.useGenerativeSummarization,
       redactPII: settings.redactPII,
+      useAIPrivacyFilter: settings.useAIPrivacyFilter,
       zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
       tgtLang: settings.tgtLang.trim() || undefined,
       runABSA: settings.runABSA,
@@ -610,18 +612,34 @@ function App() {
                       </div>
                     </label>
 
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.redactPII}
-                        onChange={(e) => setSettings(prev => ({ ...prev, redactPII: e.target.checked }))}
-                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                      />
-                      <div>
-                        <span className="block font-medium">Data Privacy: PII Redaction</span>
-                        <span className="block text-sm text-slate-500">Automatically masks emails, URLs, and phone numbers before analysis.</span>
-                      </div>
-                    </label>
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings.redactPII}
+                          onChange={(e) => setSettings(prev => ({ ...prev, redactPII: e.target.checked }))}
+                          className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="block font-medium">Data Privacy: PII Redaction</span>
+                          <span className="block text-sm text-slate-500">Automatically masks sensitive information before analysis.</span>
+                        </div>
+                      </label>
+                      {settings.redactPII && (
+                        <label className="flex items-start gap-3 ml-7 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={settings.useAIPrivacyFilter}
+                            onChange={(e) => setSettings(prev => ({ ...prev, useAIPrivacyFilter: e.target.checked }))}
+                            className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="block font-medium">Use AI Privacy Filter (OpenAI)</span>
+                            <span className="block text-sm text-slate-500">Use a 1B parameter WebGPU model for contextual, highly accurate PII detection instead of basic regex rules.</span>
+                          </div>
+                        </label>
+                      )}
+                    </div>
 
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input

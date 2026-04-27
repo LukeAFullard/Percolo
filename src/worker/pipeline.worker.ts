@@ -66,7 +66,13 @@ async function runPipeline(documents: string[], config?: any) {
         type: 'PROGRESS',
         payload: { phase: 'preprocessing', status: 'running', message: 'Redacting PII...' }
       });
-      processedDocuments = PIIRedactor.redactBatch(documents);
+      processedDocuments = await PIIRedactor.redactBatch(documents, { useAIPrivacyFilter: config?.useAIPrivacyFilter });
+
+      // Clean up AI PII model if used
+      if (config?.useAIPrivacyFilter) {
+          await PIIRedactor.dispose();
+      }
+
       ctx.postMessage({
         type: 'PROGRESS',
         payload: { phase: 'preprocessing', status: 'completed' }
