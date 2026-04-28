@@ -17,7 +17,7 @@ interface TopicBarchartProps {
 
 export const TopicBarchart: React.FC<TopicBarchartProps> = ({ topicWords, topicId, color, isDarkMode }) => {
   if (!topicWords || topicWords.length === 0) {
-    return <div className="p-4 text-center text-slate-500">No words available for this topic</div>;
+    return <div className="p-4 text-center text-slate-500 flex flex-col items-center justify-center h-full"><p>No words available for this topic</p><p className="text-sm">Data might be missing or pipeline failed.</p></div>;
   }
 
   // Plotly requires arrays for x and y
@@ -31,7 +31,24 @@ export const TopicBarchart: React.FC<TopicBarchartProps> = ({ topicWords, topicI
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Topic {topicId} Word Scores</h3>
         <p className="text-sm text-slate-500">c-TF-IDF term weighting</p>
       </div>
-      <div className="flex-1 min-h-[300px] w-full p-2 relative">
+      <div className="flex-1 min-h-[300px] w-full p-2 relative" aria-label={`Bar chart showing c-TF-IDF scores for topic ${topicId}`}>
+        <table className="sr-only">
+          <caption>Keyword Scores for Topic {topicId}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Keyword</th>
+              <th scope="col">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topicWords.map((w, idx) => (
+              <tr key={idx}>
+                <td>{w.word}</td>
+                <td>{w.score.toFixed(4)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         <Plot
           data={[
             {

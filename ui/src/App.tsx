@@ -390,6 +390,8 @@ function App() {
       return labels;
   };
 
+  const [reportExportFormat, setReportExportFormat] = React.useState<'embedded' | 'split'>('embedded');
+  const [includePlotlyScript, setIncludePlotlyScript] = React.useState(true);
   const handleDownloadReport = () => {
     if (!results || !results.reportData) return;
 
@@ -403,17 +405,60 @@ function App() {
         uniqueClasses: results.uniqueClasses || []
     };
 
-    const htmlContent = ReportGenerator.generateHTML(enrichedReportData);
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const reportOptions = { includePlotlyScript };
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `topic_modeling_report_${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (reportExportFormat === 'split') {
+        const htmlContent = ReportGenerator.generateHTML(enrichedReportData, {
+            ...reportOptions,
+            externalDataUrl: `topic_modeling_data_${dateStr}.js`
+        });
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const htmlUrl = URL.createObjectURL(htmlBlob);
+
+        const dataScriptContent = `window.reportData = ${JSON.stringify({
+                topics: [...enrichedReportData.topics].sort((a,b) => b.size - a.size),
+                umap: enrichedReportData.umap || [],
+                labels: enrichedReportData.labels || [],
+                similarityMatrix: enrichedReportData.similarityMatrix || [],
+                topicLabels: enrichedReportData.topicLabels || [],
+                uniqueClasses: enrichedReportData.uniqueClasses || []
+        })};`;
+
+        const jsBlob = new Blob([dataScriptContent], { type: 'application/javascript' });
+        const jsUrl = URL.createObjectURL(jsBlob);
+
+        const a1 = document.createElement('a');
+        a1.href = htmlUrl;
+        a1.download = `topic_modeling_report_${dateStr}.html`;
+        document.body.appendChild(a1);
+        a1.click();
+        document.body.removeChild(a1);
+
+        setTimeout(() => {
+            const a2 = document.createElement('a');
+            a2.href = jsUrl;
+            a2.download = `topic_modeling_data_${dateStr}.js`;
+            document.body.appendChild(a2);
+            a2.click();
+            document.body.removeChild(a2);
+            URL.revokeObjectURL(htmlUrl);
+            URL.revokeObjectURL(jsUrl);
+        }, 500);
+
+    } else {
+        const htmlContent = ReportGenerator.generateHTML(enrichedReportData, reportOptions);
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `topic_modeling_report_${dateStr}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
   };
 
   const handleExportCSV = () => {
@@ -1203,6 +1248,7 @@ function App() {
                   <div className="min-h-[400px]">
                       <IntertopicDistanceMap
                         umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
+                        umapCentroids={results?.umapCentroids}
                         documentLabels={(results?.labels as number[]) || []}
                         uniqueClasses={(results?.uniqueClasses as number[]) || []}
                         topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
@@ -1242,13 +1288,13 @@ function App() {
                           {wordCloudMode ? (
                              <TopicWordCloud
                                 topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
-                                topicId={selectedTopic}
+                                topicId={results?.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic}
                              />
                           ) : (
                              <TopicBarchart
                                 topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
-                                topicId={selectedTopic}
-                                color={`hsl(${(selectedTopic * 137.508) % 360}, 70%, 50%)`}
+                                topicId={results?.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic}
+                                color={`hsl(${((results?.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic) * 137.508) % 360}, 70%, 50%)`}
                                 isDarkMode={isDarkMode}
                              />
                           )}
@@ -1305,14 +1351,36 @@ function App() {
                             </>
                           )}
                           {results && results.reportData && (
-                            <button
-                              onClick={handleDownloadReport}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-md transition-colors text-sm font-medium ml-2"
-                              title="Download HTML Report"
-                            >
-                              <Download className="w-4 h-4" />
-                              Report
-                            </button>
+                            <div className="flex items-center gap-2 ml-2">
+                              <div className="flex flex-col gap-1 items-end mr-2 border-r border-slate-200 dark:border-slate-700 pr-3">
+                                <select
+                                  value={reportExportFormat}
+                                  onChange={(e) => setReportExportFormat(e.target.value as 'embedded' | 'split')}
+                                  className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded px-2 py-1 text-xs outline-none"
+                                  title="Report Format"
+                                >
+                                  <option value="embedded">Embedded Data</option>
+                                  <option value="split">Split Data (.js)</option>
+                                </select>
+                                <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer" title="Inject Plotly script via CDN">
+                                  <input
+                                    type="checkbox"
+                                    checked={includePlotlyScript}
+                                    onChange={(e) => setIncludePlotlyScript(e.target.checked)}
+                                    className="w-3 h-3 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-600 focus:ring-1"
+                                  />
+                                  Include Plotly
+                                </label>
+                              </div>
+                              <button
+                                onClick={handleDownloadReport}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-md transition-colors text-sm font-medium"
+                                title="Download HTML Report"
+                              >
+                                <Download className="w-4 h-4" />
+                                Report
+                              </button>
+                            </div>
                           )}
                           {results && (
                              <button

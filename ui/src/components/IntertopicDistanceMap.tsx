@@ -13,6 +13,7 @@ const Plot = Plotly ? (createPlotlyComponent as (...args: unknown[]) => React.El
 
 interface IntertopicDistanceMapProps {
   umapCoordinates: number[][];
+  umapCentroids?: { [key: number]: [number, number] }; // Pre-calculated centroids from pipeline
   documentLabels: number[];
   uniqueClasses: number[];
   topicLabels: string[];
@@ -23,6 +24,7 @@ interface IntertopicDistanceMapProps {
 
 export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
   umapCoordinates,
+  umapCentroids,
   documentLabels,
   uniqueClasses,
   topicLabels,
@@ -31,29 +33,37 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
   isDarkMode
 }) => {
   if (!umapCoordinates || umapCoordinates.length === 0) {
-    return <div className="p-4 text-center text-slate-500">No projection data available</div>;
+    return <div className="p-4 text-center text-slate-500 flex flex-col items-center justify-center h-full"><p>No projection data available.</p><p className="text-sm">Run a pipeline to generate visualization.</p></div>;
   }
 
-  // We need to compute 2D centroids for each topic based on document UMAP coordinates.
-  const umapCentroids = new Map<number, [number, number]>();
-  const clusterCounts = new Map<number, number>();
+  // Use pre-calculated centroids if available, otherwise compute them
+  const centroidsMap = new Map<number, [number, number]>();
 
-  for (let i = 0; i < umapCoordinates.length; i++) {
-     const label = documentLabels[i];
-     // Exclude noise
-     if (label === -1) continue;
+  if (umapCentroids && Object.keys(umapCentroids).length > 0) {
+      Object.entries(umapCentroids).forEach(([key, val]) => {
+          centroidsMap.set(Number(key), val);
+      });
+  } else {
+      // Fallback: We need to compute 2D centroids for each topic based on document UMAP coordinates.
+      const clusterCounts = new Map<number, number>();
 
-     const coords = umapCoordinates[i];
-     const current = umapCentroids.get(label) || [0, 0];
-     const count = clusterCounts.get(label) || 0;
+      for (let i = 0; i < umapCoordinates.length; i++) {
+         const label = documentLabels[i];
+         // Exclude noise
+         if (label === -1) continue;
 
-     umapCentroids.set(label, [current[0] + coords[0], current[1] + coords[1]]);
-     clusterCounts.set(label, count + 1);
-  }
+         const coords = umapCoordinates[i];
+         const current = centroidsMap.get(label) || [0, 0];
+         const count = clusterCounts.get(label) || 0;
 
-  for (const [label, sumCoords] of umapCentroids.entries()) {
-      const count = clusterCounts.get(label)!;
-      umapCentroids.set(label, [sumCoords[0] / count, sumCoords[1] / count]);
+         centroidsMap.set(label, [current[0] + coords[0], current[1] + coords[1]]);
+         clusterCounts.set(label, count + 1);
+      }
+
+      for (const [label, sumCoords] of centroidsMap.entries()) {
+          const count = clusterCounts.get(label)!;
+          centroidsMap.set(label, [sumCoords[0] / count, sumCoords[1] / count]);
+      }
   }
 
   // Build the traces array for Plotly (one trace per valid topic)
@@ -68,7 +78,7 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
 
   uniqueClasses.forEach((label, i) => {
      if (label === -1) return;
-     const centroid = umapCentroids.get(label);
+     const centroid = centroidsMap.get(label);
      if (centroid) {
          x.push(centroid[0]);
          y.push(centroid[1]);
@@ -76,12 +86,16 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
          const size = topicSizes[i] ? Math.max(10, (topicSizes[i] / maxTopicSize) * 50) : 15;
          sizes.push(size);
 
+         // Extract topic ID correctly to fix invalid hsl issues (in case string labels are mistakenly passed)
+         // Assuming topic ID maps to actual ID integers in normal operation, but fallback to index for string labels
+         const id = typeof label === 'number' ? label : i;
+
          // Use the same color logic as HTML report
-         colors.push(`hsl(${(i * 137.508) % 360}, 70%, 50%)`);
+         colors.push(`hsl(${(id * 137.508) % 360}, 70%, 50%)`);
 
          validTopicLabels.push(topicLabels[i]);
 
-         let text = `<b>${topicLabels[i]}</b><br>Size: ${topicSizes[i] || clusterCounts.get(label) || 0}`;
+         let text = `<b>${topicLabels[i]}</b><br>Size: ${topicSizes[i] || 0}`;
          if (hoverSummaries && hoverSummaries[i]) {
             text += `<br><br><i>${hoverSummaries[i]}</i>`;
          }
@@ -97,7 +111,28 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Intertopic Distance Map</h3>
         <p className="text-sm text-slate-500">2D projection of topic centroids via UMAP</p>
       </div>
-      <div className="flex-1 min-h-[400px] w-full p-2 relative">
+      <div className="flex-1 min-h-[400px] w-full p-2 relative" aria-label="Intertopic distance map showing 2D projection of topic centroids via UMAP">
+        <table className="sr-only">
+          <caption>Intertopic Distance Map Centroids</caption>
+          <thead>
+            <tr>
+              <th scope="col">Topic Label</th>
+              <th scope="col">UMAP X Coordinate</th>
+              <th scope="col">UMAP Y Coordinate</th>
+              <th scope="col">Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            {validTopicLabels.map((label, idx) => (
+              <tr key={idx}>
+                <td>{label}</td>
+                <td>{x[idx]}</td>
+                <td>{y[idx]}</td>
+                <td>{sizes[idx]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         <Plot
           data={[
             {
