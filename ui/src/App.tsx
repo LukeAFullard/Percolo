@@ -130,7 +130,7 @@ function App() {
         }
       }
 
-      const supportedExtensions = ['.txt', '.md', '.json', '.pdf', '.docx', '.png', '.jpg', '.jpeg'];
+      const supportedExtensions = ['.txt', '.md', '.json', '.csv', '.xlsx', '.xls', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg', '.m4a'];
       const filteredFiles = allFiles.filter(f => supportedExtensions.some(ext => f.name.toLowerCase().endsWith(ext)));
 
       if (filteredFiles.length > 0) {
@@ -178,7 +178,7 @@ function App() {
 
       await traverseDirectoryHandle(dirHandle);
 
-      const supportedExtensions = ['.txt', '.md', '.json', '.pdf', '.docx', '.png', '.jpg', '.jpeg'];
+      const supportedExtensions = ['.txt', '.md', '.json', '.csv', '.xlsx', '.xls', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.mp3', '.wav', '.ogg', '.m4a'];
       const filteredFiles = files.filter(f => supportedExtensions.some(ext => f.name.toLowerCase().endsWith(ext)));
 
       if (filteredFiles.length > 0) {
@@ -577,7 +577,7 @@ function App() {
                   className="hidden"
                   ref={fileInputRef}
                   onChange={handleFileInput}
-                  accept=".txt,.md,.json,.pdf,.docx,.png,.jpg,.jpeg"
+                  accept=".txt,.md,.json,.csv,.xlsx,.xls,.pdf,.docx,.png,.jpg,.jpeg,.mp3,.wav,.ogg,.m4a"
                 />
 
                 {isParsingFiles ? (
