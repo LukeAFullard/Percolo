@@ -208,6 +208,7 @@ export class FileParser {
         const audioBuffer = await ctx.decodeAudioData(bufferClone);
         // Use the first channel (mono)
         audioData = audioBuffer.getChannelData(0);
+        await ctx.close(); // Close hardware context to prevent 6-context browser limit crash
       } else {
         // Node.js fallback / mock for testing
         // Mocking a silent 1-second audio array at 16kHz
