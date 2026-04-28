@@ -16,7 +16,7 @@ interface SimilarityHeatmapProps {
 
 export const SimilarityHeatmap: React.FC<SimilarityHeatmapProps> = ({ similarityMatrix, topicLabels, isDarkMode }) => {
   if (!similarityMatrix || similarityMatrix.length === 0) {
-    return <div className="p-4 text-center text-slate-500">No similarity data available</div>;
+    return <div className="p-4 text-center text-slate-500 flex flex-col items-center justify-center h-full"><p>No similarity data available</p><p className="text-sm">Data might be missing or pipeline failed.</p></div>;
   }
 
   // Optional: For very large topic counts, we might want to truncate or aggregate,

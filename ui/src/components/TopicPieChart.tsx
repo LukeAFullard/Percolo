@@ -17,7 +17,7 @@ interface TopicPieChartProps {
 
 export const TopicPieChart: React.FC<TopicPieChartProps> = ({ topicSizes, topicLabels, uniqueClasses, isDarkMode }) => {
   if (!topicSizes || topicSizes.length === 0 || !uniqueClasses || uniqueClasses.length === 0) {
-    return <div className="p-4 text-center text-slate-500">No topic size data available</div>;
+    return <div className="p-4 text-center text-slate-500 flex flex-col items-center justify-center h-full"><p>No topic size data available</p><p className="text-sm">Data might be missing or pipeline failed.</p></div>;
   }
 
   // Combine data to sort
@@ -32,7 +32,7 @@ export const TopicPieChart: React.FC<TopicPieChartProps> = ({ topicSizes, topicL
   const labels = combinedData.map(d => d.id === -1 ? 'Noise (-1)' : d.label);
   const pieColors = combinedData.map(d => {
       if (d.id === -1) return '#cbd5e1'; // noise is gray
-      return `hsl(${(d.originalIndex * 137.508) % 360}, 70%, 50%)`;
+      return `hsl(${(d.id * 137.508) % 360}, 70%, 50%)`;
   });
 
   const fontColor = isDarkMode ? '#e2e8f0' : '#334155'; // Tailwind slate-200 or slate-700
@@ -43,7 +43,24 @@ export const TopicPieChart: React.FC<TopicPieChartProps> = ({ topicSizes, topicL
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Topic Sizes</h3>
         <p className="text-sm text-slate-500">Distribution of documents across topics</p>
       </div>
-      <div className="flex-1 min-h-[300px] w-full p-2 relative">
+      <div className="flex-1 min-h-[300px] w-full p-2 relative" aria-label="Pie chart showing the relative sizes of discovered topics">
+        <table className="sr-only">
+          <caption>Topic Distribution Sizes</caption>
+          <thead>
+            <tr>
+              <th scope="col">Topic</th>
+              <th scope="col">Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            {combinedData.map((data, idx) => (
+              <tr key={idx}>
+                <td>{data.id === -1 ? 'Noise (-1)' : data.label}</td>
+                <td>{data.size}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         <Plot
           data={[
             {

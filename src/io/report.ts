@@ -18,6 +18,11 @@ export interface ReportData {
   uniqueClasses?: number[];
 }
 
+export interface HTMLReportOptions {
+  includePlotlyScript?: boolean; // Inject plotly CDN script
+  externalDataUrl?: string; // If set, the HTML will attempt to fetch data from this URL instead of embedding it
+}
+
 export class ReportGenerator {
   /**
    * Generates a structured Markdown report from the pipeline results.
@@ -74,9 +79,11 @@ export class ReportGenerator {
   }
 
   /**
-   * Generates a self-contained, professional HTML report featuring interactive Plotly visualizations.
+   * Generates a professional HTML report featuring interactive Plotly visualizations.
+   * Can be self-contained or reference external assets based on options.
    */
-  static generateHTML(data: ReportData): string {
+  static generateHTML(data: ReportData, options: HTMLReportOptions = {}): string {
+    const includePlotlyScript = options.includePlotlyScript !== false;
     const markdown = this.generateMarkdown(data);
 
     // Markdown to HTML conversion
@@ -94,7 +101,15 @@ export class ReportGenerator {
         .replace(/<\/p><p class="mb-4"><li/gim, '<li');
 
     // Prepare JSON payload for the plots
-    const plotDataScript = `
+    let plotDataScript = '';
+
+    if (options.externalDataUrl) {
+        // Load data via script tag to avoid local file:// CORS restrictions
+        plotDataScript = `
+        <script src="${options.externalDataUrl}"></script>
+        `;
+    } else {
+        plotDataScript = `
         <script>
             window.reportData = ${JSON.stringify({
                 topics: data.topics.sort((a,b) => b.size - a.size), // Keep noise wherever for charts, just sort by size
@@ -105,14 +120,15 @@ export class ReportGenerator {
                 uniqueClasses: data.uniqueClasses || []
             })};
         </script>
-    `;
+        `;
+    }
 
     // Interactive visualization script using Plotly
     const vizScript = `
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 const data = window.reportData;
-                if (!data.umap || data.umap.length === 0) return;
+                if (!data || !data.umap || data.umap.length === 0) return;
 
                 const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const fontColor = isDarkMode ? '#e2e8f0' : '#334155';
@@ -126,8 +142,7 @@ export class ReportGenerator {
                 const uniqueLabels = [...new Set(data.labels)];
                 const colors = data.labels.map(label => {
                    if (label === -1) return '#cbd5e1'; // noise is gray
-                   const index = uniqueLabels.indexOf(label);
-                   return \`hsl(\${(index * 137.508) % 360}, 70%, 50%)\`;
+                   return \`hsl(\${(Number(label) * 137.508) % 360}, 70%, 50%)\`;
                 });
 
                 const hoverText = data.labels.map(label => {
@@ -175,7 +190,7 @@ export class ReportGenerator {
                         xaxis: 'x' + (i === 0 ? '' : i + 1),
                         yaxis: 'y' + (i === 0 ? '' : i + 1),
                         marker: {
-                            color: \`hsl(\${(uniqueLabels.indexOf(topic.id) * 137.508) % 360}, 70%, 50%)\`
+                            color: \`hsl(\${(topic.id * 137.508) % 360}, 70%, 50%)\`
                         }
                     };
                 });
@@ -209,7 +224,7 @@ export class ReportGenerator {
                 if (allTopics.length > 0) {
                     const pieColors = allTopics.map(topic => {
                         if (topic.id === -1) return '#cbd5e1';
-                        return \`hsl(\${(uniqueLabels.indexOf(topic.id) * 137.508) % 360}, 70%, 50%)\`;
+                        return \`hsl(\${(topic.id * 137.508) % 360}, 70%, 50%)\`;
                     });
 
                     const pieData = [{
@@ -278,7 +293,7 @@ export class ReportGenerator {
             darkMode: 'media',
         }
     </script>
-    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    ${includePlotlyScript ? '<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>' : '<!-- Plotly should be loaded by the parent environment -->'}
     ${plotDataScript}
     <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }

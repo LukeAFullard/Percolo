@@ -848,6 +848,33 @@ async function runPipeline(documents: string[], config?: any) {
   const { Centroids: LocalCentroids } = await import('../math/centroids');
   latestCentroids = LocalCentroids.calculate(outEmbeddings, outLabels as number[]);
 
+  // Calculate UMAP 2D Centroids for the UI (so it doesn't have to estimate them)
+  const umapCentroids2D = new Map<number, [number, number]>();
+  const umapClusterCounts = new Map<number, number>();
+
+  for (let i = 0; i < outUmap.length; i++) {
+     const label = outLabels[i] as number;
+     if (label === -1) continue;
+
+     const coords = outUmap[i];
+     const current = umapCentroids2D.get(label) || [0, 0];
+     const count = umapClusterCounts.get(label) || 0;
+
+     umapCentroids2D.set(label, [current[0] + coords[0], current[1] + coords[1]]);
+     umapClusterCounts.set(label, count + 1);
+  }
+
+  for (const [label, sumCoords] of umapCentroids2D.entries()) {
+      const count = umapClusterCounts.get(label)!;
+      umapCentroids2D.set(label, [sumCoords[0] / count, sumCoords[1] / count]);
+  }
+
+  const finalUmapCentroids: { [key: number]: [number, number] } = {};
+  umapCentroids2D.forEach((val, key) => {
+      finalUmapCentroids[key] = val;
+  });
+
+
   // Calculate Document Probability Distribution (Fuzzy assignments to topics)
   // Standard HDBSCAN gives a single membership probability.
   // To get a distribution across ALL topics for a document, we calculate softmaxed cosine similarities
@@ -904,6 +931,7 @@ async function runPipeline(documents: string[], config?: any) {
     hoverSummaries: hoverSummaries,
     uniqueClasses: lexicalResult.uniqueClasses,
     umap: outUmap, // Note: UMAP and Distributions might still be at chunk level. They can be rolled up later if needed, but for now parent labels solve the export issue.
+    umapCentroids: finalUmapCentroids, // Pre-calculated 2D coordinates for UI
     embeddings: outEmbeddings, // Included to drive Semantic Search
     topicWords: topWordsPerTopic, // Included to drive the TopicBarchart
     similarityMatrix: similarityMatrix, // Included to drive Heatmap
