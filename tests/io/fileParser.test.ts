@@ -99,5 +99,5 @@ describe('FileParser', () => {
     expect(result[0].filename).toBe('test.mp3');
     expect(result[0].content).toBeDefined();
     // It should just return empty string since it's transcribing zeroes, or throw if model fails to load without fetch API
-  }, 20000); // Allow time for whisper download
+  }, 40000); // Allow time for whisper download
 });

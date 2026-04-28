@@ -321,15 +321,17 @@ function App() {
       try {
         const parsedDocs = await FileParser.parseFile(file);
 
+        let batchContent = '';
         for (const doc of parsedDocs) {
             if (doc.content) {
-                setInputText(prev => {
-                    const newText = prev ? prev + '\n\n' + doc.content : doc.content;
-                    return newText;
-                });
+                batchContent += (batchContent ? '\n\n' : '') + doc.content;
             } else if (doc.error) {
                 console.error(`Error parsing ${doc.filename}: ${doc.error}`);
             }
+        }
+
+        if (batchContent) {
+           setInputText(prev => prev ? prev + '\n\n' + batchContent : batchContent);
         }
       } catch (err) {
         console.error(`Failed to parse ${file.name}`, err);
