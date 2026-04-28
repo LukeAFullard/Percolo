@@ -4,7 +4,6 @@ import * as mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import Tesseract from 'tesseract.js';
-import Papa from 'papaparse';
 
 export interface ParsedDocument {
   filename: string;
@@ -46,8 +45,6 @@ export class FileParser {
         return await this.parseTextFile(normalizedFile);
       } else if (filename.endsWith('.pdf')) {
         return await this.parsePDFFile(normalizedFile);
-      } else if (filename.endsWith('.csv')) {
-        return await this.parseCsvFile(normalizedFile);
       } else if (filename.endsWith('.docx')) {
         return await this.parseDocxFile(normalizedFile);
       } else if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
@@ -95,24 +92,6 @@ export class FileParser {
     }
 
     return { filename: file.name, content: content.trim() };
-  }
-
-  private static async parseCsvFile(file: { name: string; text?: () => Promise<string>; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
-    let content = '';
-    if (file.text) {
-      content = await file.text();
-    } else if (file.buffer) {
-      const decoder = new TextDecoder('utf-8');
-      content = decoder.decode(file.buffer);
-    } else {
-        throw new Error('No valid text extraction method found on file object');
-    }
-
-    const result = Papa.parse(content, { header: false, skipEmptyLines: true });
-    // Join each row's columns with a space, and each row with a newline
-    const textContent = (result.data as any[][]).map(row => row.join(' ')).join('\n');
-
-    return { filename: file.name, content: textContent.trim() };
   }
 
   private static async parsePDFFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {

@@ -8,7 +8,7 @@
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
         <script>
-            window.reportData = {"topics":[{"id":0,"name":"successfully, landed, new","size":5,"words":[{"word":"successfully","score":2.7300291078209855},{"word":"landed","score":2.7300291078209855},{"word":"new","score":1.8523840910444898},{"word":"mars","score":1.5567576546051871},{"word":"rover","score":1.5567576546051871}],"analytics":{"sentiment":0.4575,"entities":{"dates":["today"],"emails":[],"money":[]}}},{"id":1,"name":"new, electric, vehicle","size":5,"words":[{"word":"new","score":1.8523840910444898},{"word":"electric","score":1.5567576546051871},{"word":"vehicle","score":1.5567576546051871},{"word":"features","score":1.5567576546051871},{"word":"range","score":1.5567576546051871}],"analytics":{"sentiment":-0.1162,"entities":{"dates":[],"emails":[],"money":[]}}},{"id":2,"name":"new, researchers, published","size":5,"words":[{"word":"new","score":1.8523840910444898},{"word":"researchers","score":1.037838436403458},{"word":"published","score":1.037838436403458},{"word":"groundbreaking","score":1.037838436403458},{"word":"study","score":1.037838436403458}],"analytics":{"sentiment":-0.010000000000000009,"entities":{"dates":[],"emails":[],"money":[]}}}],"umap":[[-4.5965574764636585,-1.6158002161827132],[-4.562203308559067,-2.3246588394755827],[-3.924410927399051,-1.584730564902653],[-3.6718350979310506,-2.098314520014371],[-4.1550203417630405,-2.58804445668866],[9.912891501445202,5.376447590073442],[10.446851854632376,-4.995951647691637],[10.42544362951512,4.866295328020585],[10.17952370694,5.1118125548536195],[10.34634158626014,-4.895502556682191],[-20.306594120381682,-3.712004276766231],[-21.054691171341254,-4.357808753389041],[-20.44339863188972,-4.2402555033155025],[-20.752364358498887,-3.47367198783924],[-20.886769380726903,-3.936276548225553]],"labels":[0,0,0,0,0,1,1,1,1,1,2,2,2,2,2]};
+            window.reportData = {"topics":[{"id":-1,"name":"new, electric, vehicle","size":5,"words":[{"word":"new","score":1.8523840910444898},{"word":"electric","score":1.5567576546051871},{"word":"vehicle","score":1.5567576546051871},{"word":"features","score":1.5567576546051871},{"word":"range","score":1.5567576546051871}]},{"id":0,"name":"successfully, landed, new","size":5,"words":[{"word":"successfully","score":2.7300291078209855},{"word":"landed","score":2.7300291078209855},{"word":"new","score":1.8523840910444898},{"word":"mars","score":1.5567576546051871},{"word":"rover","score":1.5567576546051871}],"analytics":{"sentiment":0.4575,"entities":{"dates":["today"],"emails":[],"money":[]}}},{"id":1,"name":"new, researchers, published","size":5,"words":[{"word":"new","score":1.8523840910444898},{"word":"researchers","score":1.037838436403458},{"word":"published","score":1.037838436403458},{"word":"groundbreaking","score":1.037838436403458},{"word":"study","score":1.037838436403458}],"analytics":{"sentiment":-0.010000000000000009,"entities":{"dates":[],"emails":[],"money":[]}}}],"umap":[[5.67372342752949,3.617472515266373],[6.484226517540329,4.449375768344839],[6.11017185710268,3.429655858506071],[5.723898873060145,4.193733954544117],[5.975371447712137,4.612222591461768],[8.213955894558964,7.491675315641221],[-10.143633280320223,-8.166460728121795],[8.79993944428893,8.085142187622656],[8.540886354607458,7.828135672643133],[-10.375717300953427,-7.934260422543338],[-2.302269630457696,-9.577758649632937],[-1.4090412296233152,-10.341079804849588],[-2.420365232513007,-10.02621216189121],[-1.4563450494364911,-10.732758440575076],[-1.9304342883018961,-10.444958196468276]],"labels":[0,0,0,0,0,-1,-1,-1,-1,-1,1,1,1,1,1]};
         </script>
 
     <style>
@@ -41,6 +41,11 @@
         </div>
 
 
+        <div class="viz-card" id="pie-container">
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Topic Sizes</h3>
+            <div id="pie-plot" style="width:100%; height:400px;"></div>
+        </div>
+
         <div class="content-card">
             <h2 class="text-3xl font-bold text-slate-800 mb-6 border-b pb-2">Topic Details</h2>
             </p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 0: successfully, landed, new</h3>
@@ -52,23 +57,22 @@
 <li class="text-slate-600">landed (2.7300)</li>
 <li class="text-slate-600">new (1.8524)</li>
 <li class="text-slate-600">mars (1.5568)</li>
-<li class="text-slate-600">rover (1.5568)</li></p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 1: new, electric, vehicle</h3>
-<p class="font-semibold text-slate-800 mt-4 mb-2">Document Count:</strong> <span class="text-slate-600">5 (33.3% of corpus)</span></li>
-<li class="mb-2"><strong class="text-slate-800">General Sentiment:</strong> <span class="text-slate-600">Negative (-0.12)</span></li>
-<li class="mb-2"><strong class="text-slate-800">Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-6 mb-6">
-<li class="text-slate-600">new (1.8524)</li>
-<li class="text-slate-600">electric (1.5568)</li>
-<li class="text-slate-600">vehicle (1.5568)</li>
-<li class="text-slate-600">features (1.5568)</li>
-<li class="text-slate-600">range (1.5568)</li></p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 2: new, researchers, published</h3>
+<li class="text-slate-600">rover (1.5568)</li></p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic 1: new, researchers, published</h3>
 <p class="font-semibold text-slate-800 mt-4 mb-2">Document Count:</strong> <span class="text-slate-600">5 (33.3% of corpus)</span></li>
 <li class="mb-2"><strong class="text-slate-800">General Sentiment:</strong> <span class="text-slate-600">Negative (-0.01)</span></li>
-- **Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-6 mb-6">
+<li class="mb-2"><strong class="text-slate-800">Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-6 mb-6">
 <li class="text-slate-600">new (1.8524)</li>
 <li class="text-slate-600">researchers (1.0378)</li>
 <li class="text-slate-600">published (1.0378)</li>
 <li class="text-slate-600">groundbreaking (1.0378)</li>
-<li class="text-slate-600">study (1.0378)</li></p><p class="mb-4">
+<li class="text-slate-600">study (1.0378)</li></p><p class="mb-4"><h3 class="text-2xl font-semibold text-slate-800 mt-8 mb-4">Topic -1: Outlier / Noise</h3>
+<p class="font-semibold text-slate-800 mt-4 mb-2">Document Count:</strong> <span class="text-slate-600">5 (33.3% of corpus)</span></li>
+- **Top Keywords (c-TF-IDF):</p><ul class="list-disc pl-6 mb-6">
+<li class="text-slate-600">new (1.8524)</li>
+<li class="text-slate-600">electric (1.5568)</li>
+<li class="text-slate-600">vehicle (1.5568)</li>
+<li class="text-slate-600">features (1.5568)</li>
+<li class="text-slate-600">range (1.5568)</li></p><p class="mb-4">
         </div>
 
     </div>
@@ -142,7 +146,7 @@
                 // Layout grid for bar charts
                 const barLayout = {
                     title: 'Top Keyword Scores (c-TF-IDF)',
-                    grid: {rows: Math.ceil(topTopics.length / 2), columns: 2, pattern: 'independent'},
+                    grid: {rows: Math.max(1, Math.ceil(topTopics.length / 2)), columns: Math.min(2, topTopics.length || 1), pattern: 'independent'},
                     height: Math.ceil(topTopics.length / 2) * 300,
                     showlegend: false,
                     paper_bgcolor: 'transparent',
@@ -160,6 +164,28 @@
                 if (topTopics.length > 0) {
                     document.getElementById('barchart-container').style.display = 'block';
                     Plotly.newPlot('barchart-plot', barChartData, barLayout, { responsive: true, displayModeBar: false });
+                }
+
+                // 3. Render Topic Distribution Pie Chart
+                const allTopics = data.topics.sort((a,b) => b.size - a.size);
+                if (allTopics.length > 0) {
+                    const pieColors = allTopics.map(topic => {
+                        if (topic.id === -1) return '#cbd5e1';
+                        return `hsl(${(uniqueLabels.indexOf(topic.id) * 137.508) % 360}, 70%, 50%)`;
+                    });
+
+                    const pieData = [{
+                        values: allTopics.map(t => t.size),
+                        labels: allTopics.map(t => t.id === -1 ? 'Noise (-1)' : `Topic ${t.id}: ${t.name.split(',')[0]}`),
+                        type: 'pie',
+                        marker: { colors: pieColors },
+                        hoverinfo: 'label+percent+value'
+                    }];
+                    const pieLayout = {
+                        title: 'Topic Distribution',
+                        margin: { l: 20, r: 20, t: 50, b: 20 }
+                    };
+                    Plotly.newPlot('pie-plot', pieData, pieLayout, { responsive: true, displayModeBar: false });
                 }
             });
         </script>

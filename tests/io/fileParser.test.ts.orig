@@ -34,15 +34,6 @@ describe('FileParser', () => {
     expect(result.content).toBe('Document 1\\nDocument 2');
   });
 
-  it('should handle CSV files', async () => {
-    const csvFile = {
-      name: 'data.csv',
-      text: async () => 'col1,col2\nval1,val2\nval3,val4'
-    };
-    const result = await FileParser.parseFile(csvFile);
-    expect(result.content).toBe('col1 col2\nval1 val2\nval3 val4');
-  });
-
   it('should return error for unsupported files', async () => {
     const unsupportedFile = {
       name: 'archive.zip',
