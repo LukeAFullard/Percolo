@@ -211,6 +211,7 @@ export class ReportGenerator {
                         title: 'Topic Distribution',
                         margin: { l: 20, r: 20, t: 50, b: 20 }
                     };
+                    document.getElementById('pie-container').style.display = 'block';
                     Plotly.newPlot('pie-plot', pieData, pieLayout, { responsive: true, displayModeBar: false });
                 }
             });
@@ -253,7 +254,7 @@ export class ReportGenerator {
         </div>
         ` : ''}
 
-        <div class="viz-card" id="pie-container">
+        <div class="viz-card" id="pie-container" style="display:none;">
             <h3 class="text-xl font-bold text-slate-800 mb-2">Topic Sizes</h3>
             <div id="pie-plot" style="width:100%; height:400px;"></div>
         </div>

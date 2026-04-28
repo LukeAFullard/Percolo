@@ -172,7 +172,7 @@ export class ReportGenerator {
                 // Layout grid for bar charts
                 const barLayout = {
                     title: 'Top Keyword Scores (c-TF-IDF)',
-                    grid: {rows: Math.ceil(topTopics.length / 2), columns: 2, pattern: 'independent'},
+                    grid: {rows: Math.max(1, Math.ceil(topTopics.length / 2)), columns: Math.min(2, topTopics.length || 1), pattern: 'independent'},
                     height: Math.ceil(topTopics.length / 2) * 300,
                     showlegend: false,
                     paper_bgcolor: 'transparent',
@@ -190,6 +190,28 @@ export class ReportGenerator {
                 if (topTopics.length > 0) {
                     document.getElementById('barchart-container').style.display = 'block';
                     Plotly.newPlot('barchart-plot', barChartData, barLayout, { responsive: true, displayModeBar: false });
+                }
+
+                // 3. Render Topic Distribution Pie Chart
+                const allTopics = data.topics.sort((a,b) => b.size - a.size);
+                if (allTopics.length > 0) {
+                    const pieColors = allTopics.map(topic => {
+                        if (topic.id === -1) return '#cbd5e1';
+                        return \`hsl(\${(uniqueLabels.indexOf(topic.id) * 137.508) % 360}, 70%, 50%)\`;
+                    });
+
+                    const pieData = [{
+                        values: allTopics.map(t => t.size),
+                        labels: allTopics.map(t => t.id === -1 ? 'Noise (-1)' : \`Topic \${t.id}: \${t.name.split(',')[0]}\`),
+                        type: 'pie',
+                        marker: { colors: pieColors },
+                        hoverinfo: 'label+percent+value'
+                    }];
+                    const pieLayout = {
+                        title: 'Topic Distribution',
+                        margin: { l: 20, r: 20, t: 50, b: 20 }
+                    };
+                    Plotly.newPlot('pie-plot', pieData, pieLayout, { responsive: true, displayModeBar: false });
                 }
             });
         </script>
@@ -230,6 +252,11 @@ export class ReportGenerator {
             <div id="barchart-plot" style="width:100%;"></div>
         </div>
         ` : ''}
+
+        <div class="viz-card" id="pie-container">
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Topic Sizes</h3>
+            <div id="pie-plot" style="width:100%; height:400px;"></div>
+        </div>
 
         <div class="content-card">
             <h2 class="text-3xl font-bold text-slate-800 mb-6 border-b pb-2">Topic Details</h2>
