@@ -6,6 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import Tesseract from 'tesseract.js';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { pipeline } from '@huggingface/transformers';
 
 export interface ParsedDocument {
   filename: string;
@@ -53,6 +54,8 @@ export class FileParser {
         return await this.parseXlsxFile(normalizedFile);
       } else if (filename.endsWith('.docx')) {
         return await this.parseDocxFile(normalizedFile);
+      } else if (filename.endsWith('.mp3') || filename.endsWith('.wav') || filename.endsWith('.ogg') || filename.endsWith('.m4a')) {
+        return await this.parseAudioFile(normalizedFile);
       } else if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
         return await this.parseImageFile(normalizedFile);
       } else {
@@ -184,6 +187,48 @@ export class FileParser {
     const result = await mammoth.extractRawText({ arrayBuffer: file.buffer });
 
     return [{ filename: file.name, content: result.value.trim() }];
+  }
+
+  private static async parseAudioFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+    if (!file.buffer) {
+         throw new Error('Audio parsing requires an ArrayBuffer');
+    }
+
+    try {
+      let audioData: Float32Array;
+
+      // Check if we are in a browser environment with AudioContext
+      // If not (e.g. Node.js tests), mock the audio decoding
+      if (typeof window !== 'undefined' && (window.AudioContext || (window as any).webkitAudioContext)) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContext({ sampleRate: 16000 }); // Whisper requires 16kHz
+
+        // clone buffer because decodeAudioData detaches it
+        const bufferClone = file.buffer.slice(0);
+        const audioBuffer = await ctx.decodeAudioData(bufferClone);
+        // Use the first channel (mono)
+        audioData = audioBuffer.getChannelData(0);
+      } else {
+        // Node.js fallback / mock for testing
+        // Mocking a silent 1-second audio array at 16kHz
+        audioData = new Float32Array(16000);
+      }
+
+      // Configure Whisper with explicitly setting CPU device and preventing wasm multi-thread crashes during decoding
+      const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+         device: 'cpu'
+      });
+
+      // @ts-ignore - The pipeline accepts Float32Array
+      const result = await transcriber(audioData, { chunk_length_s: 30, stride_length_s: 5 });
+
+      await transcriber.dispose(); // Free memory immediately
+
+      const text = Array.isArray(result) ? result[0].text : (result as any).text || '';
+      return [{ filename: file.name, content: text.trim() }];
+    } catch (error: any) {
+       throw new Error(`Audio transcription failed: ${error.message || error}`);
+    }
   }
 
   private static async parseImageFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {

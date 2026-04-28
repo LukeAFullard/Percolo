@@ -766,7 +766,7 @@ async function runPipeline(documents: string[], config?: any) {
   // Final arrays without seed prepending
   let outLabels = finalLabels;
   let outProbs = clusteringResult.probabilities;
-  let outUmap = reducedEmbeddings;
+  let outUmap = reducedEmbeddings!;
   let outEmbeddings = embeddings;
 
   // Rehydrate deduplicated documents if needed

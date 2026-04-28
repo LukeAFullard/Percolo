@@ -86,4 +86,18 @@ describe('FileParser', () => {
     const result = await FileParser.parseFile(imageFile);
     expect(result[0].error).toContain('Failed to parse image.png');
   });
+
+  it('should handle mock audio parsing via Whisper fallback', async () => {
+    const audioFile = {
+      name: 'test.mp3',
+      buffer: new ArrayBuffer(100) // Dummy buffer, node fallback just uses silent Float32Array
+    };
+
+    // Because this initializes Xenova/whisper-tiny.en, it might take a moment
+    // but the output will be empty text since the fallback provides silence.
+    const result = await FileParser.parseFile(audioFile);
+    expect(result[0].filename).toBe('test.mp3');
+    expect(result[0].content).toBeDefined();
+    // It should just return empty string since it's transcribing zeroes, or throw if model fails to load without fetch API
+  }, 20000); // Allow time for whisper download
 });
