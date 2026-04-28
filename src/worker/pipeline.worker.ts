@@ -13,11 +13,13 @@ import { DocumentChunker } from '../nlp/chunker';
 import { GenerativeSummarizer } from '../nlp/generative';
 import { PIIRedactor } from '../nlp/pii';
 import { ZeroShotClassifier } from '../nlp/zeroshot';
+import { FewShotClassifier } from '../nlp/fewshot';
 import { CrossLingualTranslator } from '../nlp/translation';
 import { ABSAEngine } from '../nlp/absa';
 import { KeyphraseExtractor } from '../nlp/keyphrase';
 import { Similarity } from '../math/similarity';
 import { NLPAnalytics } from '../nlp/analytics';
+import { Deduplicator } from '../nlp/deduplication';
 
 import { IncrementalUpdater } from '../nlp/incremental';
 
@@ -198,6 +200,18 @@ async function runPipeline(documents: string[], config?: any) {
     });
   }
 
+  let dedupMapping: number[] | null = null;
+  if (config?.deduplicate) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'embeddings', status: 'running', message: 'Deduplicating documents...' }
+      });
+      const dedupResult = Deduplicator.run(processedDocuments, embeddings, 0.95);
+      processedDocuments = dedupResult.uniqueDocuments;
+      embeddings = dedupResult.uniqueEmbeddings;
+      dedupMapping = dedupResult.indexMapping;
+  }
+
   let guidedLabels: number[] | null = null;
   if (config?.seedWords && config.seedWords.length > 0) {
       ctx.postMessage({
@@ -209,19 +223,36 @@ async function runPipeline(documents: string[], config?: any) {
       guidedLabels = priorResult.seedLabels;
   }
 
-  // Phase 7: Memory Hygiene
-  // Explicitly dispose of the ONNX inference session to free up GPU and system memory
-  // before proceeding to memory-heavy graph operations (UMAP/HDBSCAN).
-  await EmbeddingPipeline.dispose();
+  // Phase 3/4: UMAP & Clustering OR Zero-Shot/Few-Shot Classification
+  // We execute Few/Zero Shot *before* disposing embeddings since they require the pipeline to embed labels/examples.
+  if (config?.fewShotCategories && Object.keys(config.fewShotCategories).length > 0) {
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'clustering', status: 'running', message: 'Performing Few-Shot Classification...' }
+      });
+      const zsResult = await FewShotClassifier.classify(embeddings, config.fewShotCategories, config);
 
-  // Phase 3/4: UMAP & Clustering OR Zero-Shot Classification
-  if (config?.zeroShotCategories) {
+      const categoryLabels = Object.keys(config.fewShotCategories);
+      const categoryMap = new Map<string, number>();
+      categoryLabels.forEach((cat: string, idx: number) => categoryMap.set(cat, idx));
+
+      clusteringResult = {
+         labels: zsResult.map(r => categoryMap.get(r.label) as number),
+         probabilities: zsResult.map(r => r.similarity)
+      };
+
+      reducedEmbeddings = embeddings.map(e => [e[0] || 0, e[1] || 0]);
+      ctx.postMessage({
+        type: 'PROGRESS',
+        payload: { phase: 'clustering', status: 'completed' }
+      });
+  } else if (config?.zeroShotCategories) {
       ctx.postMessage({
         type: 'PROGRESS',
         payload: { phase: 'clustering', status: 'running', message: 'Performing Zero-Shot Classification...' }
       });
       // Bypass HDBSCAN, assign directly via cosine similarity to category embeddings
-      const zsResult = await ZeroShotClassifier.classify(embeddings, config.zeroShotCategories);
+      const zsResult = await ZeroShotClassifier.classify(embeddings, config.zeroShotCategories, config);
 
       // Map zero shot categories to numeric indices to mock HDBSCAN labels
       const categoryMap = new Map<string, number>();
@@ -238,6 +269,15 @@ async function runPipeline(documents: string[], config?: any) {
         type: 'PROGRESS',
         payload: { phase: 'clustering', status: 'completed' }
       });
+  }
+
+  // Phase 7: Memory Hygiene
+  // Explicitly dispose of the ONNX inference session to free up system memory
+  // before proceeding to memory-heavy graph operations (UMAP/HDBSCAN) if falling through to standard clustering.
+  await EmbeddingPipeline.dispose();
+
+  if (config?.fewShotCategories || config?.zeroShotCategories) {
+       // If we already clustered via zero/few shot, we skip standard clustering logic
   } else {
       const MAX_SAMPLED_DOCS = 2500;
       const isSampling = embeddings.length > MAX_SAMPLED_DOCS;
@@ -728,6 +768,35 @@ async function runPipeline(documents: string[], config?: any) {
   let outProbs = clusteringResult.probabilities;
   let outUmap = reducedEmbeddings;
   let outEmbeddings = embeddings;
+
+  // Rehydrate deduplicated documents if needed
+  if (dedupMapping) {
+      const restoredLabels = new Array(dedupMapping.length).fill(-1);
+      const restoredProbs = new Array(dedupMapping.length).fill(0);
+      const restoredUmap = new Array(dedupMapping.length).fill([0, 0]);
+
+      for (let i = 0; i < dedupMapping.length; i++) {
+          const uniqueIdx = dedupMapping[i];
+          if (uniqueIdx !== -1) {
+             restoredLabels[i] = outLabels[uniqueIdx];
+             restoredProbs[i] = outProbs[uniqueIdx];
+             restoredUmap[i] = outUmap[uniqueIdx];
+          }
+      }
+      outLabels = restoredLabels;
+      outProbs = restoredProbs;
+      outUmap = restoredUmap;
+
+      // We must rehydrate the embeddings array so Semantic Search matches the original document index
+      const restoredEmbeddings = new Array(dedupMapping.length);
+      for (let i = 0; i < dedupMapping.length; i++) {
+          const uniqueIdx = dedupMapping[i];
+          if (uniqueIdx !== -1) {
+             restoredEmbeddings[i] = outEmbeddings[uniqueIdx];
+          }
+      }
+      outEmbeddings = restoredEmbeddings;
+  }
 
   // If chunking is enabled, roll up the chunk labels back to the parent document level
   // so the UI and exports match the original `documents` array.

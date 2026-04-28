@@ -80,10 +80,15 @@ export function usePercolo() {
     return await orchestratorRef.current.runSearch(query, results.embeddings, config);
   };
 
+  const loadResults = (savedResults: any) => {
+    setResults(savedResults);
+  };
+
   return {
     runPipeline,
     runInference,
     runSearch,
+    loadResults,
     isProcessing,
     progress,
     results,
