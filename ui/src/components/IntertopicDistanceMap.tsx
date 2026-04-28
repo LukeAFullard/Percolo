@@ -13,6 +13,8 @@ const Plot = Plotly ? (createPlotlyComponent as (...args: unknown[]) => React.El
 
 interface IntertopicDistanceMapProps {
   umapCoordinates: number[][];
+  documentLabels: number[];
+  uniqueClasses: number[];
   topicLabels: string[];
   topicSizes: number[];
   hoverSummaries?: string[];
@@ -20,6 +22,8 @@ interface IntertopicDistanceMapProps {
 
 export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
   umapCoordinates,
+  documentLabels,
+  uniqueClasses,
   topicLabels,
   topicSizes,
   hoverSummaries
@@ -28,23 +32,62 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
     return <div className="p-4 text-center text-slate-500">No projection data available</div>;
   }
 
-  const x = umapCoordinates.map(coord => coord[0]);
-  const y = umapCoordinates.map(coord => coord[1]);
+  // We need to compute 2D centroids for each topic based on document UMAP coordinates.
+  const umapCentroids = new Map<number, [number, number]>();
+  const clusterCounts = new Map<number, number>();
 
-  // Use topic sizes for marker sizes if available, else default size
+  for (let i = 0; i < umapCoordinates.length; i++) {
+     const label = documentLabels[i];
+     // Exclude noise
+     if (label === -1) continue;
+
+     const coords = umapCoordinates[i];
+     const current = umapCentroids.get(label) || [0, 0];
+     const count = clusterCounts.get(label) || 0;
+
+     umapCentroids.set(label, [current[0] + coords[0], current[1] + coords[1]]);
+     clusterCounts.set(label, count + 1);
+  }
+
+  for (const [label, sumCoords] of umapCentroids.entries()) {
+      const count = clusterCounts.get(label)!;
+      umapCentroids.set(label, [sumCoords[0] / count, sumCoords[1] / count]);
+  }
+
+  // Build the traces array for Plotly (one trace per valid topic)
+  const x: number[] = [];
+  const y: number[] = [];
+  const sizes: number[] = [];
+  const colors: string[] = [];
+  const validTopicLabels: string[] = [];
+  const hoverTexts: string[] = [];
+
   const maxTopicSize = Math.max(...(topicSizes.length ? topicSizes : [1]));
-  const markerSizes = topicSizes.length > 0
-    ? topicSizes.map(size => Math.max(10, (size / maxTopicSize) * 50))
-    : Array(umapCoordinates.length).fill(15);
 
-  const hoverText = topicLabels.map((label, i) => {
-    let text = `<b>${label}</b>`;
-    if (topicSizes[i]) text += `<br>Size: ${topicSizes[i]}`;
-    if (hoverSummaries && hoverSummaries[i]) {
-      text += `<br><br><i>${hoverSummaries[i]}</i>`;
-    }
-    return text;
+  uniqueClasses.forEach((label, i) => {
+     if (label === -1) return;
+     const centroid = umapCentroids.get(label);
+     if (centroid) {
+         x.push(centroid[0]);
+         y.push(centroid[1]);
+
+         const size = topicSizes[i] ? Math.max(10, (topicSizes[i] / maxTopicSize) * 50) : 15;
+         sizes.push(size);
+
+         // Use the same color logic as HTML report
+         colors.push(`hsl(${(i * 137.508) % 360}, 70%, 50%)`);
+
+         validTopicLabels.push(topicLabels[i]);
+
+         let text = `<b>${topicLabels[i]}</b><br>Size: ${topicSizes[i] || clusterCounts.get(label) || 0}`;
+         if (hoverSummaries && hoverSummaries[i]) {
+            text += `<br><br><i>${hoverSummaries[i]}</i>`;
+         }
+         hoverTexts.push(text);
+     }
   });
+
+
 
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -58,15 +101,14 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
             {
               x: x,
               y: y,
-              text: hoverText,
+              text: hoverTexts,
               hoverinfo: 'text',
               mode: 'text+markers',
               textposition: 'top center',
               type: 'scatter',
               marker: {
-                size: markerSizes,
-                color: x, // Use x coordinate for a gradient color map
-                colorscale: 'Viridis',
+                size: sizes,
+                color: colors,
                 line: {
                   color: 'rgba(255, 255, 255, 0.5)',
                   width: 1

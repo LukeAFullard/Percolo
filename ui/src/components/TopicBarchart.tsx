@@ -11,9 +11,10 @@ const Plot = Plotly ? (createPlotlyComponent as (...args: unknown[]) => React.El
 interface TopicBarchartProps {
   topicWords: Array<{ word: string; score: number }>;
   topicId: number;
+  color?: string;
 }
 
-export const TopicBarchart: React.FC<TopicBarchartProps> = ({ topicWords, topicId }) => {
+export const TopicBarchart: React.FC<TopicBarchartProps> = ({ topicWords, topicId, color }) => {
   if (!topicWords || topicWords.length === 0) {
     return <div className="p-4 text-center text-slate-500">No words available for this topic</div>;
   }
@@ -38,9 +39,9 @@ export const TopicBarchart: React.FC<TopicBarchartProps> = ({ topicWords, topicI
               y: words,
               orientation: 'h',
               marker: {
-                color: 'rgba(59, 130, 246, 0.7)', // Tailwind blue-500 equivalent
+                color: color || 'rgba(59, 130, 246, 0.7)', // Fallback to Tailwind blue-500
                 line: {
-                  color: 'rgba(37, 99, 235, 1)', // Tailwind blue-600 equivalent
+                  color: color || 'rgba(37, 99, 235, 1)', // Fallback to Tailwind blue-600
                   width: 1
                 }
               }

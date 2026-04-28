@@ -13,6 +13,9 @@ export interface ReportData {
   // Optional detailed data for plots
   umap?: number[][];
   labels?: number[];
+  similarityMatrix?: number[][];
+  topicLabels?: string[];
+  uniqueClasses?: number[];
 }
 
 export class ReportGenerator {
@@ -96,7 +99,10 @@ export class ReportGenerator {
             window.reportData = ${JSON.stringify({
                 topics: data.topics.sort((a,b) => b.size - a.size), // Keep noise wherever for charts, just sort by size
                 umap: data.umap || [],
-                labels: data.labels || []
+                labels: data.labels || [],
+                similarityMatrix: data.similarityMatrix || [],
+                topicLabels: data.topicLabels || [],
+                uniqueClasses: data.uniqueClasses || []
             })};
         </script>
     `;
@@ -214,6 +220,34 @@ export class ReportGenerator {
                     document.getElementById('pie-container').style.display = 'block';
                     Plotly.newPlot('pie-plot', pieData, pieLayout, { responsive: true, displayModeBar: false });
                 }
+
+                // 4. Render Similarity Heatmap
+                if (data.similarityMatrix && data.similarityMatrix.length > 0) {
+                    const heatmapData = [{
+                        z: data.similarityMatrix,
+                        x: data.topicLabels.map((_, i) => 'T' + i), // Short labels for X axis
+                        y: data.topicLabels, // Full labels for Y axis
+                        type: 'heatmap',
+                        colorscale: 'Blues',
+                        showscale: true,
+                        hoverongaps: false,
+                        zmin: 0,
+                        zmax: 1
+                    }];
+                    const heatmapLayout = {
+                        title: 'Topic Similarity Heatmap',
+                        autosize: true,
+                        margin: { l: 150, r: 20, t: 50, b: 50 },
+                        paper_bgcolor: 'transparent',
+                        plot_bgcolor: 'transparent',
+                        xaxis: {
+                            tickangle: -45,
+                        }
+                    };
+                    document.getElementById('heatmap-container').style.display = 'block';
+                    Plotly.newPlot('heatmap-plot', heatmapData, heatmapLayout, { responsive: true, displayModeBar: false });
+                }
+
             });
         </script>
     `;
@@ -254,10 +288,18 @@ export class ReportGenerator {
         </div>
         ` : ''}
 
+
         <div class="viz-card" id="pie-container" style="display:none;">
             <h3 class="text-xl font-bold text-slate-800 mb-2">Topic Sizes</h3>
             <div id="pie-plot" style="width:100%; height:400px;"></div>
         </div>
+
+        <div class="viz-card" id="heatmap-container" style="display:none;">
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Topic Similarity</h3>
+            <p class="text-sm text-slate-500 mb-4">Cosine correlation between c-TF-IDF topic representations.</p>
+            <div id="heatmap-plot" style="width:100%; height:500px;"></div>
+        </div>
+
 
         <div class="content-card">
             <h2 class="text-3xl font-bold text-slate-800 mb-6 border-b pb-2">Topic Details</h2>

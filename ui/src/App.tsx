@@ -383,7 +383,17 @@ function App() {
   const handleDownloadReport = () => {
     if (!results || !results.reportData) return;
 
-    const htmlContent = ReportGenerator.generateHTML(results.reportData);
+    // Inject missing UMAP & Similarity Data into Report Data
+    const enrichedReportData = {
+        ...results.reportData,
+        umap: results.umap || [],
+        labels: results.labels || [],
+        similarityMatrix: results.similarityMatrix || [],
+        topicLabels: results.topicLabels || [],
+        uniqueClasses: results.uniqueClasses || []
+    };
+
+    const htmlContent = ReportGenerator.generateHTML(enrichedReportData);
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
 
@@ -1183,6 +1193,8 @@ function App() {
                   <div className="min-h-[400px]">
                       <IntertopicDistanceMap
                         umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
+                        documentLabels={(results?.labels as number[]) || []}
+                        uniqueClasses={(results?.uniqueClasses as number[]) || []}
                         topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
                         topicSizes={(results?.topicSizes as number[]) || mockSizes}
                         hoverSummaries={(results?.hoverSummaries as string[])}
@@ -1215,6 +1227,7 @@ function App() {
                              <TopicBarchart
                                 topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
                                 topicId={selectedTopic}
+                                color={`hsl(${(selectedTopic * 137.508) % 360}, 70%, 50%)`}
                              />
                           )}
                       </div>
