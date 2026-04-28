@@ -1,0 +1,197 @@
+--- src/io/fileParser.ts
++++ src/io/fileParser.ts
+@@ -10,18 +10,21 @@
+   filename: string;
+   content: string;
+   metadata?: any;
+   error?: string;
+ }
+
+ export class FileParser {
+   /**
+    * Parses the content of a File object based on its extension or mime type.
+    * Note: In a pure Node.js environment (for headless testing), we accept buffers/paths.
+    * In a browser environment, we accept standard File objects.
++   *
++   * Structured files (like CSV or XLSX) can return an array of strings (one per row) if parsing allows it,
++   * which can then be flattened or handled by the caller. To maintain backward compatibility, it returns an array of ParsedDocument.
+    *
+    * @param file The file object (browser) or an object with name/buffer properties
+-   * @returns ParsedDocument object
++   * @returns Array of ParsedDocument objects
+    */
+-  static async parseFile(file: { name: string; buffer?: ArrayBuffer; text?: () => Promise<string>; arrayBuffer?: () => Promise<ArrayBuffer> }): Promise<ParsedDocument> {
++  static async parseFile(file: { name: string; buffer?: ArrayBuffer; text?: () => Promise<string>; arrayBuffer?: () => Promise<ArrayBuffer> }): Promise<ParsedDocument[]> {
+     try {
+       const filename = file.name.toLowerCase();
+
+@@ -39,36 +42,36 @@
+       }
+
+       if (filename.endsWith('.txt') || filename.endsWith('.md') || filename.endsWith('.json')) {
+         return await this.parseTextFile(normalizedFile);
+       } else if (filename.endsWith('.pdf')) {
+         return await this.parsePDFFile(normalizedFile);
+       } else if (filename.endsWith('.csv')) {
+         return await this.parseCsvFile(normalizedFile);
+       } else if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+         return await this.parseXlsxFile(normalizedFile);
+       } else if (filename.endsWith('.docx')) {
+         return await this.parseDocxFile(normalizedFile);
+       } else if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+         return await this.parseImageFile(normalizedFile);
+       } else {
+-        return {
++        return [{
+           filename: file.name,
+           content: '',
+           error: `Unsupported file type: ${file.name}`
+-        };
++        }];
+       }
+     } catch (e: any) {
+-      return {
++      return [{
+         filename: file.name,
+         content: '',
+         error: `Failed to parse ${file.name}: ${e.message}`
+-      };
++      }];
+     }
+   }
+
+-  private static async parseTextFile(file: { name: string; text?: () => Promise<string>; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
++  private static async parseTextFile(file: { name: string; text?: () => Promise<string>; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+     let content = '';
+     if (file.text) {
+       content = await file.text();
+     } else if (file.buffer) {
+       const decoder = new TextDecoder('utf-8');
+@@ -78,48 +81,59 @@
+     }
+
+     if (file.name.toLowerCase().endsWith('.json')) {
+         try {
+             // Attempt to parse JSON to see if it's a feed, or just stringify it
+             const json = JSON.parse(content);
+             if (Array.isArray(json)) {
+-                 content = json.map(item => typeof item === 'string' ? item : JSON.stringify(item)).join('\n');
++                 return json.map((item, index) => ({
++                    filename: `${file.name} - Item ${index + 1}`,
++                    content: typeof item === 'string' ? item : JSON.stringify(item)
++                 }));
+             } else if (typeof json === 'object') {
+-                 // Try to extract text fields if it's a known format, otherwise stringify
+-                 content = Object.values(json).map(v => typeof v === 'string' ? v : JSON.stringify(v)).join('\n');
++                 return [{
++                     filename: file.name,
++                     content: Object.values(json).map(v => typeof v === 'string' ? v : JSON.stringify(v)).join('\n')
++                 }];
+             }
+         } catch(e) {
+             // If it's malformed JSON, just treat as raw text
+         }
+     }
+
+-    return { filename: file.name, content: content.trim() };
++    return [{ filename: file.name, content: content.trim() }];
+   }
+
+-  private static async parseCsvFile(file: { name: string; text?: () => Promise<string>; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
++  private static async parseCsvFile(file: { name: string; text?: () => Promise<string>; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+     let content = '';
+     if (file.text) {
+       content = await file.text();
+     } else if (file.buffer) {
+       const decoder = new TextDecoder('utf-8');
+       content = decoder.decode(file.buffer);
+     } else {
+         throw new Error('No valid text extraction method found on file object');
+     }
+
+     const result = Papa.parse(content, { header: false, skipEmptyLines: true });
+-    // Join each row's columns with a space, and each row with a newline
+-    const textContent = (result.data as any[][]).map(row => row.join(' ')).join('\n');
++
++    // Split each row into its own parsed document
++    return (result.data as any[][]).map((row, index) => ({
++        filename: `${file.name} - Row ${index + 1}`,
++        content: row.join(' ').trim()
++    })).filter(doc => doc.content.length > 0);
+-
+-    return { filename: file.name, content: textContent.trim() };
+   }
+
+-  private static async parseXlsxFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
++  private static async parseXlsxFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+     if (!file.buffer) {
+         throw new Error('XLSX parsing requires an ArrayBuffer');
+     }
+
+     try {
+       const workbook = XLSX.read(file.buffer, { type: 'array' });
+-      let content = '';
++      const documents: ParsedDocument[] = [];
+
+       // Extract text from all sheets
+       for (const sheetName of workbook.SheetNames) {
+         const sheet = workbook.Sheets[sheetName];
+         const csv = XLSX.utils.sheet_to_csv(sheet);
+         const parsed = Papa.parse(csv, { header: false, skipEmptyLines: true });
+-        content += (parsed.data as any[][]).map(row => row.join(' ')).join('\n') + '\n';
++        const rows = (parsed.data as any[][]).map((row, index) => ({
++            filename: `${file.name} - ${sheetName} - Row ${index + 1}`,
++            content: row.join(' ').trim()
++        })).filter(doc => doc.content.length > 0);
++        documents.push(...rows);
+       }
+-      return { filename: file.name, content: content.trim() };
++      return documents;
+     } catch (e: any) {
+        throw new Error(`XLSX parsing failed: ${e.message}`);
+     }
+   }
+
+-  private static async parsePDFFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
++  private static async parsePDFFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+     if (!file.buffer) {
+         throw new Error('PDF parsing requires an ArrayBuffer');
+     }
+@@ -141,10 +155,10 @@
+         const pageText = textContent.items.map((item: any) => item.str).join(' ');
+         fullText += pageText + '\n';
+     }
+
+-    return { filename: file.name, content: fullText.trim() };
++    return [{ filename: file.name, content: fullText.trim() }];
+   }
+
+-  private static async parseDocxFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
++  private static async parseDocxFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+     if (!file.buffer) {
+          throw new Error('DOCX parsing requires an ArrayBuffer');
+     }
+@@ -152,10 +166,10 @@
+     // mammoth requires a Node buffer or ArrayBuffer
+     const result = await mammoth.extractRawText({ arrayBuffer: file.buffer });
+
+-    return { filename: file.name, content: result.value.trim() };
++    return [{ filename: file.name, content: result.value.trim() }];
+   }
+
+-  private static async parseImageFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
++  private static async parseImageFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+     if (!file.buffer) {
+          throw new Error('Image parsing requires an ArrayBuffer');
+     }
+@@ -171,10 +185,10 @@
+         { logger: _m => {} } // Disable noisy logging for tests/production unless requested
+       );
+
+-      return { filename: file.name, content: result.data.text.trim() };
++      return [{ filename: file.name, content: result.data.text.trim() }];
+     } catch (error: any) {
+        throw new Error(`OCR failed: ${error.message || error}`);
+     }
+   }
+ }
