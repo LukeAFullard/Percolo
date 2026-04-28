@@ -1,0 +1,26 @@
+--- fileParser.ts
++++ fileParser.ts
+@@ -10,18 +10,21 @@
+   filename: string;
+   content: string;
+   metadata?: any;
+   error?: string;
+ }
+
+ export class FileParser {
+   /**
+    * Parses the content of a File object based on its extension or mime type.
+    * Note: In a pure Node.js environment (for headless testing), we accept buffers/paths.
+    * In a browser environment, we accept standard File objects.
++   *
++   * Structured files (like CSV or XLSX) can return an array of strings (one per row) if parsing allows it,
++   * which can then be flattened or handled by the caller. To maintain backward compatibility, it returns an array of ParsedDocument.
+    *
+    * @param file The file object (browser) or an object with name/buffer properties
+-   * @returns ParsedDocument object
++   * @returns Array of ParsedDocument objects
+    */
+-  static async parseFile(file: { name: string; buffer?: ArrayBuffer; text?: () => Promise<string>; arrayBuffer?: () => Promise<ArrayBuffer> }): Promise<ParsedDocument> {
++  static async parseFile(file: { name: string; buffer?: ArrayBuffer; text?: () => Promise<string>; arrayBuffer?: () => Promise<ArrayBuffer> }): Promise<ParsedDocument[]> {
+     try {
+       const filename = file.name.toLowerCase();

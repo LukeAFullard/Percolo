@@ -10,9 +10,9 @@ describe('FileParser', () => {
     };
 
     const result = await FileParser.parseFile(textFile);
-    expect(result.filename).toBe('test.txt');
-    expect(result.content).toBe('Hello World!');
-    expect(result.error).toBeUndefined();
+    expect(result[0].filename).toBe('test.txt');
+    expect(result[0].content).toBe('Hello World!');
+    expect(result[0].error).toBeUndefined();
   });
 
   it('should parse markdown files', async () => {
@@ -22,7 +22,7 @@ describe('FileParser', () => {
     };
 
     const result = await FileParser.parseFile(mdFile);
-    expect(result.content).toBe('# Heading\\n\\nSome markdown text.');
+    expect(result[0].content).toBe('# Heading\\n\\nSome markdown text.');
   });
 
   it('should handle JSON files', async () => {
@@ -32,7 +32,9 @@ describe('FileParser', () => {
     };
 
     const result = await FileParser.parseFile(jsonFile);
-    expect(result.content).toBe('Document 1\\nDocument 2');
+    expect(result).toHaveLength(2);
+    expect(result[0].content).toBe('Document 1');
+    expect(result[1].content).toBe('Document 2');
   });
 
   it('should handle CSV files', async () => {
@@ -41,7 +43,10 @@ describe('FileParser', () => {
       text: async () => 'col1,col2\nval1,val2\nval3,val4'
     };
     const result = await FileParser.parseFile(csvFile);
-    expect(result.content).toBe('col1 col2\nval1 val2\nval3 val4');
+    expect(result).toHaveLength(3);
+    expect(result[0].content).toBe('col1 col2');
+    expect(result[1].content).toBe('val1 val2');
+    expect(result[2].content).toBe('val3 val4');
   });
 
   it('should handle XLSX files', async () => {
@@ -57,7 +62,9 @@ describe('FileParser', () => {
     };
 
     const result = await FileParser.parseFile(xlsxFile);
-    expect(result.content).toBe('col1 col2\nval1 val2');
+    expect(result).toHaveLength(2);
+    expect(result[0].content).toBe('col1 col2');
+    expect(result[1].content).toBe('val1 val2');
   });
 
   it('should return error for unsupported files', async () => {
@@ -67,7 +74,7 @@ describe('FileParser', () => {
     };
 
     const result = await FileParser.parseFile(unsupportedFile);
-    expect(result.error).toContain('Unsupported file type');
+    expect(result[0].error).toContain('Unsupported file type');
   });
 
   it('should return error if OCR fails (e.g. empty buffer)', async () => {
@@ -77,6 +84,6 @@ describe('FileParser', () => {
     };
 
     const result = await FileParser.parseFile(imageFile);
-    expect(result.error).toContain('Failed to parse image.png');
+    expect(result[0].error).toContain('Failed to parse image.png');
   });
 });
