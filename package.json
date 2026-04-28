@@ -42,6 +42,7 @@
     "tesseract.js": "^7.0.0",
     "umap-js": "^1.4.0",
     "wink-eng-lite-web-model": "^1.8.1",
-    "wink-nlp": "^2.4.0"
+    "wink-nlp": "^2.4.0",
+    "xlsx": "^0.18.5"
   }
 }

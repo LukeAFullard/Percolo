@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FileParser } from '../../src/io/fileParser';
+import * as XLSX from 'xlsx';
 
 describe('FileParser', () => {
   it('should parse simple text files', async () => {
@@ -41,6 +42,22 @@ describe('FileParser', () => {
     };
     const result = await FileParser.parseFile(csvFile);
     expect(result.content).toBe('col1 col2\nval1 val2\nval3 val4');
+  });
+
+  it('should handle XLSX files', async () => {
+    // Generate a dummy XLSX file buffer
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([['col1', 'col2'], ['val1', 'val2']]);
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+
+    const xlsxFile = {
+      name: 'data.xlsx',
+      buffer: buffer
+    };
+
+    const result = await FileParser.parseFile(xlsxFile);
+    expect(result.content).toBe('col1 col2\nval1 val2');
   });
 
   it('should return error for unsupported files', async () => {

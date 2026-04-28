@@ -5,6 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import Tesseract from 'tesseract.js';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 export interface ParsedDocument {
   filename: string;
@@ -48,6 +49,8 @@ export class FileParser {
         return await this.parsePDFFile(normalizedFile);
       } else if (filename.endsWith('.csv')) {
         return await this.parseCsvFile(normalizedFile);
+      } else if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+        return await this.parseXlsxFile(normalizedFile);
       } else if (filename.endsWith('.docx')) {
         return await this.parseDocxFile(normalizedFile);
       } else if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
@@ -113,6 +116,28 @@ export class FileParser {
     const textContent = (result.data as any[][]).map(row => row.join(' ')).join('\n');
 
     return { filename: file.name, content: textContent.trim() };
+  }
+
+  private static async parseXlsxFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
+    if (!file.buffer) {
+        throw new Error('XLSX parsing requires an ArrayBuffer');
+    }
+
+    try {
+      const workbook = XLSX.read(file.buffer, { type: 'array' });
+      let content = '';
+
+      // Extract text from all sheets
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(sheet);
+        const parsed = Papa.parse(csv, { header: false, skipEmptyLines: true });
+        content += (parsed.data as any[][]).map(row => row.join(' ')).join('\n') + '\n';
+      }
+      return { filename: file.name, content: content.trim() };
+    } catch (e: any) {
+       throw new Error(`XLSX parsing failed: ${e.message}`);
+    }
   }
 
   private static async parsePDFFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument> {
