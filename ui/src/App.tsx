@@ -7,6 +7,7 @@ import { TopicWordCloud } from './components/TopicWordCloud';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
 import { DynamicTopicModeling } from './components/DynamicTopicModeling';
 import { DocumentDistribution } from './components/DocumentDistribution';
+import { TopicPieChart } from './components/TopicPieChart';
 import { LandingPage } from './components/LandingPage';
 import { CookieBanner } from './components/CookieBanner';
 import { LegalNoticeModal } from './components/LegalNoticeModal';
@@ -79,6 +80,15 @@ function App() {
 
   const { runPipeline, runInference, runSearch, loadResults, isProcessing, progress, results, error } = usePercolo();
   const fileReaderRef = useRef<HTMLInputElement>(null);
+
+  const [isDarkMode, setIsDarkMode] = React.useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   const [inferenceText, setInferenceText] = React.useState('');
   const [inferenceResult, setInferenceResult] = React.useState<{label: number, similarity: number, topicName: string} | null>(null);
@@ -1198,6 +1208,7 @@ function App() {
                         topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
                         topicSizes={(results?.topicSizes as number[]) || mockSizes}
                         hoverSummaries={(results?.hoverSummaries as string[])}
+                        isDarkMode={isDarkMode}
                       />
                   </div>
 
@@ -1205,6 +1216,16 @@ function App() {
                       <SimilarityHeatmap
                         similarityMatrix={results?.similarityMatrix || mockSimilarityMatrix}
                         topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                        isDarkMode={isDarkMode}
+                      />
+                  </div>
+
+                  <div className="min-h-[400px]">
+                      <TopicPieChart
+                        topicSizes={(results?.topicSizes as number[]) || mockSizes}
+                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                        uniqueClasses={(results?.uniqueClasses as number[]) || Array.from({length: mockLabels.length}, (_, i) => i)}
+                        isDarkMode={isDarkMode}
                       />
                   </div>
 
@@ -1228,6 +1249,7 @@ function App() {
                                 topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
                                 topicId={selectedTopic}
                                 color={`hsl(${(selectedTopic * 137.508) % 360}, 70%, 50%)`}
+                                isDarkMode={isDarkMode}
                              />
                           )}
                       </div>
@@ -1241,6 +1263,7 @@ function App() {
                                   : mockDocumentDistributions[selectedDocIndex % 3]
                               }
                               topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                              isDarkMode={isDarkMode}
                           />
                       </div>
                   )}
@@ -1251,6 +1274,7 @@ function App() {
                               documentLabels={results.labels}
                               uniqueClasses={results.uniqueClasses}
                               topicLabels={results.topicLabels}
+                              isDarkMode={isDarkMode}
                           />
                       </div>
                   )}
