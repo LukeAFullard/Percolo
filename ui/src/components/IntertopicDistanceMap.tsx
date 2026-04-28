@@ -18,6 +18,7 @@ interface IntertopicDistanceMapProps {
   topicLabels: string[];
   topicSizes: number[];
   hoverSummaries?: string[];
+  isDarkMode?: boolean;
 }
 
 export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
@@ -26,7 +27,8 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
   uniqueClasses,
   topicLabels,
   topicSizes,
-  hoverSummaries
+  hoverSummaries,
+  isDarkMode
 }) => {
   if (!umapCoordinates || umapCoordinates.length === 0) {
     return <div className="p-4 text-center text-slate-500">No projection data available</div>;
@@ -123,17 +125,18 @@ export const IntertopicDistanceMap: React.FC<IntertopicDistanceMapProps> = ({
             hovermode: 'closest',
             paper_bgcolor: 'transparent',
             plot_bgcolor: 'transparent',
+            font: { color: isDarkMode ? '#e2e8f0' : '#334155' },
             xaxis: {
               showgrid: true,
               zeroline: false,
               showticklabels: false,
-              gridcolor: 'rgba(128, 128, 128, 0.2)'
+              gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
             },
             yaxis: {
               showgrid: true,
               zeroline: false,
               showticklabels: false,
-              gridcolor: 'rgba(128, 128, 128, 0.2)'
+              gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
             }
           }}
           useResizeHandler={true}

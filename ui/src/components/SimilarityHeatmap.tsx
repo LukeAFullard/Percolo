@@ -11,9 +11,10 @@ const Plot = Plotly ? (createPlotlyComponent as (...args: unknown[]) => React.El
 interface SimilarityHeatmapProps {
   similarityMatrix: number[][];
   topicLabels: string[];
+  isDarkMode?: boolean;
 }
 
-export const SimilarityHeatmap: React.FC<SimilarityHeatmapProps> = ({ similarityMatrix, topicLabels }) => {
+export const SimilarityHeatmap: React.FC<SimilarityHeatmapProps> = ({ similarityMatrix, topicLabels, isDarkMode }) => {
   if (!similarityMatrix || similarityMatrix.length === 0) {
     return <div className="p-4 text-center text-slate-500">No similarity data available</div>;
   }
@@ -47,8 +48,13 @@ export const SimilarityHeatmap: React.FC<SimilarityHeatmapProps> = ({ similarity
             margin: { l: 150, r: 20, t: 20, b: 50 },
             paper_bgcolor: 'transparent',
             plot_bgcolor: 'transparent',
+            font: { color: isDarkMode ? '#e2e8f0' : '#334155' },
             xaxis: {
               tickangle: -45,
+              gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+            },
+            yaxis: {
+              gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
             }
           }}
           useResizeHandler={true}

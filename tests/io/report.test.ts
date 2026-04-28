@@ -49,7 +49,7 @@ describe('ReportGenerator', () => {
 
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('<h1 class="text-4xl font-extrabold');
-    expect(html).toContain('<strong class="text-slate-900">Total Documents Processed:</strong><span class="text-slate-600"> 100</span><br>');
+    expect(html).toContain('<strong class="text-slate-900 dark:text-white">Total Documents Processed:</strong><span class="text-slate-600 dark:text-slate-300"> 100</span><br>');
     expect(html).toContain('<h3 class="text-2xl font-semibold');
   });
 });

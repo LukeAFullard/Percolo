@@ -13,13 +13,15 @@ interface DynamicTopicModelingProps {
   uniqueClasses: number[];
   topicLabels: string[];
   binCount?: number;
+  isDarkMode?: boolean;
 }
 
 export const DynamicTopicModeling: React.FC<DynamicTopicModelingProps> = ({
     documentLabels,
     uniqueClasses,
     topicLabels,
-    binCount = 10
+    binCount = 10,
+    isDarkMode
 }) => {
   if (!documentLabels || documentLabels.length === 0) {
     return <div className="p-4 text-center text-slate-500">No document data available.</div>;
@@ -71,14 +73,16 @@ export const DynamicTopicModeling: React.FC<DynamicTopicModelingProps> = ({
             margin: { l: 40, r: 20, t: 20, b: 40 },
             paper_bgcolor: 'transparent',
             plot_bgcolor: 'transparent',
+            font: { color: isDarkMode ? '#e2e8f0' : '#334155' },
             xaxis: {
               showgrid: false,
               zeroline: false,
+              gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
             },
             yaxis: {
               showgrid: true,
               zeroline: false,
-              gridcolor: 'rgba(128, 128, 128, 0.1)',
+              gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
             },
             showlegend: true,
             legend: {

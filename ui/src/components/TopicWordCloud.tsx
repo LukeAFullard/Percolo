@@ -17,8 +17,18 @@ export const TopicWordCloud: React.FC<TopicWordCloudProps> = ({ topicWords, topi
     value: w.score * 100 // Scale up for better size differentiation
   }));
 
+  // Generate variations of the topic's HSL color for the word cloud
+  const baseHue = (topicId * 137.508) % 360;
+  const colors = [
+    `hsl(${baseHue}, 70%, 50%)`,
+    `hsl(${baseHue}, 60%, 40%)`,
+    `hsl(${baseHue}, 80%, 60%)`,
+    `hsl(${baseHue}, 50%, 30%)`,
+    `hsl(${baseHue}, 90%, 70%)`
+  ];
+
   const options = {
-    colors: ['#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
+    colors: colors,
     enableTooltip: true,
     deterministic: true,
     fontFamily: 'Inter, sans-serif',
