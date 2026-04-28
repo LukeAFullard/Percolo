@@ -3,6 +3,7 @@ import { usePercolo } from './hooks/usePercolo';
 import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { TopicBarchart } from './components/TopicBarchart';
+import { TopicWordCloud } from './components/TopicWordCloud';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
 import { DynamicTopicModeling } from './components/DynamicTopicModeling';
 import { DocumentDistribution } from './components/DocumentDistribution';
@@ -11,6 +12,7 @@ import { CookieBanner } from './components/CookieBanner';
 import { LegalNoticeModal } from './components/LegalNoticeModal';
 import { FileParser } from '@src/io/fileParser';
 import { ReportGenerator } from '@src/io/report';
+import { PipelineCache } from '../../src/io/cache';
 import { Exporter } from '@src/io/exporter';
 import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 
@@ -20,13 +22,17 @@ function App() {
   const [isLegalModalOpen, setIsLegalModalOpen] = React.useState(false);
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
+  const [wordCloudMode, setWordCloudMode] = React.useState(false);
   const [settings, setSettings] = React.useState({
     seedWords: '',
     useGenerativeSummarization: false,
     redactPII: false,
     useAIPrivacyFilter: false,
     zeroShotCategories: '',
+    fewShotCategoriesStr: '',
     tgtLang: '',
+    embeddingModel: 'Xenova/all-MiniLM-L6-v2',
+    embeddingPrecision: 'fp32',
     runABSA: false,
     runAnalytics: false,
     runNER: false,
@@ -40,7 +46,8 @@ function App() {
     useChunking: false,
     chunkMaxTokens: 256,
     chunkOverlapTokens: 50,
-    useLowMemoryFallback: false
+    useLowMemoryFallback: false,
+    deduplicate: true
   });
   const [docs, setDocs] = React.useState<string[]>([
     "This is a test document about artificial intelligence and machine learning models.",
@@ -70,7 +77,9 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelParsingRef = useRef(false);
 
-  const { runPipeline, runInference, runSearch, isProcessing, progress, results, error } = usePercolo();
+  const { runPipeline, runInference, runSearch, loadResults, isProcessing, progress, results, error } = usePercolo();
+  const fileReaderRef = useRef<HTMLInputElement>(null);
+
   const [inferenceText, setInferenceText] = React.useState('');
   const [inferenceResult, setInferenceResult] = React.useState<{label: number, similarity: number, topicName: string} | null>(null);
   const [isInferring, setIsInferring] = React.useState(false);
@@ -192,6 +201,18 @@ function App() {
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
+    // Parse Few-Shot String: "Category1: example1, example2 | Category2: example3"
+    const fewShotCategories: Record<string, string[]> = {};
+    if (settings.fewShotCategoriesStr.trim() !== '') {
+      const categories = settings.fewShotCategoriesStr.split('|');
+      categories.forEach(cat => {
+        const [label, examples] = cat.split(':');
+        if (label && examples) {
+           fewShotCategories[label.trim()] = examples.split(',').map(e => e.trim()).filter(e => e.length > 0);
+        }
+      });
+    }
+
     const customStopWordsList = settings.customStopWords
       .split(',')
       .map(s => s.trim().toLowerCase())
@@ -211,7 +232,10 @@ function App() {
       redactPII: settings.redactPII,
       useAIPrivacyFilter: settings.useAIPrivacyFilter,
       zeroShotCategories: zeroShotList.length > 0 ? zeroShotList : undefined,
+      fewShotCategories: Object.keys(fewShotCategories).length > 0 ? fewShotCategories : undefined,
       tgtLang: settings.tgtLang.trim() || undefined,
+      modelName: settings.embeddingModel,
+      precision: settings.embeddingPrecision,
       runABSA: settings.runABSA,
       runAnalytics: settings.runAnalytics,
       runNER: settings.runNER,
@@ -225,8 +249,58 @@ function App() {
       useChunking: settings.useChunking,
       chunkMaxTokens: settings.chunkMaxTokens,
       chunkOverlapTokens: settings.chunkOverlapTokens,
-      useLowMemoryFallback: settings.useLowMemoryFallback
+      useLowMemoryFallback: settings.useLowMemoryFallback,
+      deduplicate: settings.deduplicate
     };
+  };
+
+  React.useEffect(() => {
+    // Attempt to load from IDB on mount
+    PipelineCache.loadCheckpoint('latest_run').then(state => {
+      if (state && state.data) {
+        // We found a previous run
+        // We might want to prompt the user, but for now just load it
+        loadResults(state.data);
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (results && results.labels && results.embeddings) {
+        PipelineCache.saveCheckpoint('latest_run', 'completed', results);
+    }
+  }, [results]);
+
+  const handleExportState = () => {
+    if (!results) return;
+    // Basic export. Exclude embeddings to keep file size reasonable if desired, or keep them.
+    // For now we keep everything.
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(results));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("download", "percolo_state.json");
+    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const handleImportState = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const data = JSON.parse(event.target?.result as string);
+            loadResults(data);
+            PipelineCache.saveCheckpoint('latest_run', 'completed', data);
+            setActiveTab('visualize');
+        } catch (err) {
+            console.error("Failed to parse state JSON", err);
+            alert("Invalid state file.");
+        }
+    };
+    reader.readAsText(file);
+    if (fileReaderRef.current) fileReaderRef.current.value = '';
   };
 
   const processFiles = async (files: File[]) => {
@@ -563,6 +637,25 @@ function App() {
                   {isProcessing ? 'Processing...' : 'Run Pipeline'}
                 </button>
               </div>
+
+              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+                  <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">Resume Previous Session</h3>
+                  <p className="text-slate-500 mb-4 text-sm">Load a previously exported state to instantly resume visualization and inference without recalculating embeddings.</p>
+
+                  <button
+                    onClick={() => fileReaderRef.current?.click()}
+                    className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Import State (.json)
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileReaderRef}
+                    onChange={handleImportState}
+                    accept=".json"
+                    className="hidden"
+                  />
+                </div>
             </div>
           </div>
         )}
@@ -602,6 +695,54 @@ function App() {
                     className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
+
+                {/* Few-Shot Classification */}
+                <div>
+                  <h3 className="text-lg font-medium mb-1">Few-Shot Classification</h3>
+                  <p className="text-sm text-slate-500 mb-3">Define custom categories with specific examples to guide clustering based on centroids. Overrides Zero-Shot.</p>
+                  <textarea
+                    value={settings.fewShotCategoriesStr}
+                    onChange={(e) => setSettings(prev => ({ ...prev, fewShotCategoriesStr: e.target.value }))}
+                    placeholder="e.g., Finance: stock market, trading algorithms, wall street | Weather: raining, sunny day, forecast"
+                    rows={3}
+                    className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+                  />
+                </div>
+
+                {/* Embedding Options */}
+                <hr className="border-slate-200 dark:border-slate-700" />
+                <div>
+                  <h3 className="text-lg font-medium mb-1">Embedding Engine</h3>
+                  <p className="text-sm text-slate-500 mb-3">Choose the dense vector model and precision.</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Model</label>
+                          <select
+                             value={settings.embeddingModel}
+                             onChange={(e) => setSettings(prev => ({...prev, embeddingModel: e.target.value}))}
+                             className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          >
+                             <option value="Xenova/all-MiniLM-L6-v2">English Only (Fastest, ~90MB)</option>
+                             <option value="Xenova/paraphrase-multilingual-MiniLM-L12-v2">Multilingual (Slower, supports 50+ languages)</option>
+                          </select>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Quantization / Precision</label>
+                          <select
+                             value={settings.embeddingPrecision}
+                             onChange={(e) => setSettings(prev => ({...prev, embeddingPrecision: e.target.value}))}
+                             className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                          >
+                             <option value="fp32">32-bit Float (Highest Quality, High RAM)</option>
+                             <option value="fp16">16-bit Float (Balanced)</option>
+                             <option value="q8">8-bit Quantized (Lowest RAM, ~117MB for Multilingual)</option>
+                          </select>
+                      </div>
+                  </div>
+                </div>
+
+                <hr className="border-slate-200 dark:border-slate-700" />
 
                 {/* Topic Reduction */}
                 <div>
@@ -650,6 +791,19 @@ function App() {
                 <div>
                   <h3 className="text-lg font-medium mb-4">Advanced NLP Features</h3>
                   <div className="space-y-4">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.deduplicate}
+                        onChange={(e) => setSettings(prev => ({ ...prev, deduplicate: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Data Deduplication</span>
+                        <span className="block text-sm text-slate-500">Automatically filter out heavily duplicate documents to speed up processing.</span>
+                      </div>
+                    </label>
+
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1038,11 +1192,26 @@ function App() {
                   </div>
 
                   {selectedTopic !== null && (
-                      <div className="min-h-[300px]">
-                          <TopicBarchart
-                              topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
-                              topicId={selectedTopic}
-                          />
+                      <div className="min-h-[300px] flex flex-col">
+                          <div className="flex justify-end mb-2">
+                             <button
+                                onClick={() => setWordCloudMode(!wordCloudMode)}
+                                className="px-3 py-1 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-md transition-colors"
+                             >
+                                Toggle {wordCloudMode ? 'Bar Chart' : 'Word Cloud'}
+                             </button>
+                          </div>
+                          {wordCloudMode ? (
+                             <TopicWordCloud
+                                topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
+                                topicId={selectedTopic}
+                             />
+                          ) : (
+                             <TopicBarchart
+                                topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
+                                topicId={selectedTopic}
+                             />
+                          )}
                       </div>
                   )}
                   {selectedDocIndex !== null && (
@@ -1101,6 +1270,16 @@ function App() {
                             >
                               <Download className="w-4 h-4" />
                               Report
+                            </button>
+                          )}
+                          {results && (
+                             <button
+                              onClick={handleExportState}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50 rounded-md transition-colors text-sm font-medium ml-2"
+                              title="Export App State JSON"
+                            >
+                              <Download className="w-4 h-4" />
+                              Export State
                             </button>
                           )}
                       </div>
