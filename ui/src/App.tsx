@@ -3,7 +3,7 @@ import { usePercolo } from './hooks/usePercolo';
 import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { CorpusAnalytics } from './components/CorpusAnalytics';
-import { SentimentTimeSeries } from './components/SentimentTimeSeries';
+import { TemporalTrends } from './components/TemporalTrends';
 import { EntityNetwork } from './components/EntityNetwork';
 import { TopicBarchart } from './components/TopicBarchart';
 import { TopicWordCloud } from './components/TopicWordCloud';
@@ -39,6 +39,7 @@ function App() {
     embeddingPrecision: 'fp32',
     runABSA: false,
     runAnalytics: true,
+    runToxicity: false,
     runNER: false,
     useKeyBERT: false,
     customStopWords: '',
@@ -251,6 +252,7 @@ function App() {
       precision: settings.embeddingPrecision,
       runABSA: settings.runABSA,
       runAnalytics: settings.runAnalytics,
+      runToxicity: settings.runToxicity,
       runNER: settings.runNER,
       useKeyBERT: settings.useKeyBERT,
       customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
@@ -931,6 +933,19 @@ function App() {
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
+                        checked={settings.runToxicity}
+                        onChange={(e) => setSettings(prev => ({ ...prev, runToxicity: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Toxicity & Bias Audit</span>
+                        <span className="block text-sm text-slate-500">Runs an adversarial sequence classification model (toxic-bert) to audit dataset toxicity over time.</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
                         checked={settings.runNER}
                         onChange={(e) => setSettings(prev => ({ ...prev, runNER: e.target.checked }))}
                         className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
@@ -1241,16 +1256,32 @@ function App() {
           </div>
         )}
 
-                      {activeTab === 'analytics' && results && results.reportData && results.reportData.corpusStats && (
-                  <div className="flex-1 w-full h-full p-4 overflow-y-auto">
+                      {activeTab === 'analytics' && (
+                <div className="flex-1 w-full h-full p-8 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
+                  {!results || !results.reportData || !results.reportData.corpusStats ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto">
+                      <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6">
+                        <Activity className="w-8 h-8 text-blue-500" />
+                      </div>
+                      <h3 className="text-xl font-medium mb-2">No Analytics Data</h3>
+                      <p className="text-slate-500">
+                        Upload data and run the pipeline to generate and view Corpus Analytics.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
                       <CorpusAnalytics
                           data={results.reportData.corpusStats}
                           isDarkMode={isDarkMode}
                       />
-                      {results.reportData.corpusStats.documentSentiments && results.reportData.corpusStats.documentSentiments.length > 0 && (
+                      {(
+                        (results.reportData.corpusStats.documentSentiments && results.reportData.corpusStats.documentSentiments.length > 0) ||
+                        (results.reportData.corpusStats.documentToxicity && results.reportData.corpusStats.documentToxicity.length > 0)
+                      ) && (
                           <div className="mt-6 w-full">
-                              <SentimentTimeSeries
+                              <TemporalTrends
                                   documentSentiments={results.reportData.corpusStats.documentSentiments}
+                                  documentToxicity={results.reportData.corpusStats.documentToxicity}
                                   isDarkMode={isDarkMode}
                               />
                           </div>
@@ -1263,7 +1294,9 @@ function App() {
                               />
                           </div>
                       )}
-                  </div>
+                    </div>
+                  )}
+                </div>
               )}
               {activeTab === 'visualize' && (
           <div className="flex-1 flex flex-col p-6 overflow-hidden bg-slate-50 dark:bg-slate-900/50">
