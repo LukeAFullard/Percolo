@@ -1024,13 +1024,51 @@ async function runPipeline(documents: string[], config?: any) {
         })).sort((a, b) => b.frequency - a.frequency);
     }
 
+    // 3. Anomaly Analytics
+    // Identify unclustered documents (label -1) and calculate their distance from the global centroid
+    let anomalyData: Array<{ documentIndex: number; text: string; score: number; coords: [number, number] }> = [];
+    if (outEmbeddings.length > 0 && outEmbeddings[0].length > 0) {
+        // Calculate global centroid
+        const embedDim = outEmbeddings[0].length;
+        const globalCentroid = new Array(embedDim).fill(0);
+        for (let i = 0; i < outEmbeddings.length; i++) {
+            for (let j = 0; j < embedDim; j++) {
+                globalCentroid[j] += outEmbeddings[i][j];
+            }
+        }
+        for (let j = 0; j < embedDim; j++) {
+            globalCentroid[j] /= outEmbeddings.length;
+        }
+
+        // Find anomalies (documents with label -1)
+        const unclusteredIndices: number[] = [];
+        for (let i = 0; i < finalParentLabels.length; i++) {
+            if (finalParentLabels[i] === -1) {
+                unclusteredIndices.push(i);
+            }
+        }
+
+        anomalyData = unclusteredIndices.map(idx => {
+            // Distance is 1 - Cosine Similarity (so higher score = more anomalous)
+            const similarity = Similarity.cosine(outEmbeddings[idx], globalCentroid);
+            const score = 1 - similarity;
+            return {
+                documentIndex: idx,
+                text: processedDocuments[idx].substring(0, 150) + (processedDocuments[idx].length > 150 ? '...' : ''),
+                score,
+                coords: [outUmap[idx][0], outUmap[idx][1]] as [number, number]
+            };
+        }).sort((a, b) => b.score - a.score); // Sort by most anomalous
+    }
+
     const reportData = {
         corpusStats: {
             tokenFrequencies,
             documentLengths,
             documentSentiments,
             documentToxicity,
-            entityNetworkData
+            entityNetworkData,
+            anomalyData
         },
 
         totalDocuments: documents.length,
