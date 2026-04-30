@@ -2,6 +2,9 @@ import React, { useRef } from 'react';
 import { usePercolo } from './hooks/usePercolo';
 import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
+import { CorpusAnalytics } from './components/CorpusAnalytics';
+import { SentimentTimeSeries } from './components/SentimentTimeSeries';
+import { EntityNetwork } from './components/EntityNetwork';
 import { TopicBarchart } from './components/TopicBarchart';
 import { TopicWordCloud } from './components/TopicWordCloud';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
@@ -19,7 +22,7 @@ import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
 
 
 function App() {
-  const [activeTab, setActiveTab] = React.useState<'landing' | 'upload' | 'visualize' | 'inference' | 'search' | 'settings'>('landing');
+  const [activeTab, setActiveTab] = React.useState<'landing' | 'upload' | 'visualize' | 'analytics' | 'inference' | 'search' | 'settings'>('landing');
   const [isLegalModalOpen, setIsLegalModalOpen] = React.useState(false);
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
@@ -35,7 +38,7 @@ function App() {
     embeddingModel: 'Xenova/all-MiniLM-L6-v2',
     embeddingPrecision: 'fp32',
     runABSA: false,
-    runAnalytics: false,
+    runAnalytics: true,
     runNER: false,
     useKeyBERT: false,
     customStopWords: '',
@@ -574,6 +577,18 @@ function App() {
           >
             <BarChart2 className="w-5 h-5" />
             Visualization
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+              activeTab === 'analytics'
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <Activity className="w-5 h-5" />
+            Corpus Analytics
           </button>
 
           <button
@@ -1226,7 +1241,31 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'visualize' && (
+                      {activeTab === 'analytics' && results && results.reportData && results.reportData.corpusStats && (
+                  <div className="flex-1 w-full h-full p-4 overflow-y-auto">
+                      <CorpusAnalytics
+                          data={results.reportData.corpusStats}
+                          isDarkMode={isDarkMode}
+                      />
+                      {results.reportData.corpusStats.documentSentiments && results.reportData.corpusStats.documentSentiments.length > 0 && (
+                          <div className="mt-6 w-full">
+                              <SentimentTimeSeries
+                                  documentSentiments={results.reportData.corpusStats.documentSentiments}
+                                  isDarkMode={isDarkMode}
+                              />
+                          </div>
+                      )}
+                      {results.reportData.corpusStats.entityNetworkData && results.reportData.corpusStats.entityNetworkData.nodes && results.reportData.corpusStats.entityNetworkData.nodes.length > 0 && (
+                          <div className="mt-6 w-full">
+                              <EntityNetwork
+                                  data={results.reportData.corpusStats.entityNetworkData}
+                                  isDarkMode={isDarkMode}
+                              />
+                          </div>
+                      )}
+                  </div>
+              )}
+              {activeTab === 'visualize' && (
           <div className="flex-1 flex flex-col p-6 overflow-hidden bg-slate-50 dark:bg-slate-900/50">
             {isProcessing && progress ? (
               <div className="flex-1 flex flex-col items-center justify-center">

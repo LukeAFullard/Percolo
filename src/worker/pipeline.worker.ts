@@ -940,7 +940,84 @@ async function runPipeline(documents: string[], config?: any) {
 
   try {
     // Generate Report Data object for UI to easily consume
+
+    let documentSentiments: number[] = [];
+    const entityNodes = new Map<string, { group: string; value: number }>();
+    const entityLinks = new Map<string, number>();
+
+    if (config?.runAnalytics) {
+        documentSentiments = processedDocuments.map(doc => {
+            const result = NLPAnalytics.processDocument(doc);
+
+            // Build co-occurrence
+            const docEntities: Array<{id: string, group: string}> = [];
+            result.entities.dates.forEach(e => docEntities.push({ id: e, group: 'DATE' }));
+            result.entities.emails.forEach(e => docEntities.push({ id: e, group: 'EMAIL' }));
+            result.entities.money.forEach(e => docEntities.push({ id: e, group: 'MONEY' }));
+
+            // Deduplicate per doc
+            const uniqueEntities = new Map<string, {id: string, group: string}>();
+            docEntities.forEach(e => uniqueEntities.set(e.id, e));
+
+            const uniqueArr = Array.from(uniqueEntities.values());
+
+            uniqueArr.forEach(e => {
+                const node = entityNodes.get(e.id) || { group: e.group, value: 0 };
+                node.value++;
+                entityNodes.set(e.id, node);
+            });
+
+            for (let i = 0; i < uniqueArr.length; i++) {
+                for (let j = i + 1; j < uniqueArr.length; j++) {
+                    const id1 = uniqueArr[i].id;
+                    const id2 = uniqueArr[j].id;
+                    const edgeId = id1 < id2 ? id1 + '|' + id2 : id2 + '|' + id1;
+                    entityLinks.set(edgeId, (entityLinks.get(edgeId) || 0) + 1);
+                }
+            }
+
+            return result.sentiment;
+        });
+    }
+
+    const entityNetworkData = {
+        nodes: Array.from(entityNodes.entries()).map(([id, data]) => ({ id, ...data })),
+        links: Array.from(entityLinks.entries()).map(([edgeId, value]) => {
+            const [source, target] = edgeId.split('|');
+            return { source, target, value };
+        })
+    };
+
+    // Sort nodes and limit to top 50 for visualization performance
+    entityNetworkData.nodes.sort((a, b) => b.value - a.value);
+    entityNetworkData.nodes = entityNetworkData.nodes.slice(0, 50);
+    const topNodeIds = new Set(entityNetworkData.nodes.map(n => n.id));
+    entityNetworkData.links = entityNetworkData.links.filter(l => topNodeIds.has(l.source) && topNodeIds.has(l.target));
+
+    // ETDA: Corpus Analytics
+    // 1. Calculate Document Lengths
+    const documentLengths = processedDocuments.map(doc => {
+        // Fast approximation of token count
+        return doc.split(/\s+/).filter(t => t.length > 0).length;
+    });
+
+    // 2. Calculate Token Frequencies (Zipf's Law Data)
+    let tokenFrequencies: Array<{ word: string; frequency: number }> = [];
+    if (lexicalResult.vocabulary && lexicalResult.globalTermFrequencies) {
+        tokenFrequencies = lexicalResult.vocabulary.map((word, idx) => ({
+            word,
+            frequency: lexicalResult.globalTermFrequencies[idx]
+        })).sort((a, b) => b.frequency - a.frequency);
+    }
+
     const reportData = {
+        corpusStats: {
+            tokenFrequencies,
+            documentLengths,
+            documentSentiments,
+            entityNetworkData
+        },
+
         totalDocuments: documents.length,
         coherenceScore: coherenceScore,
         topics: lexicalResult.uniqueClasses.map((label, idx) => {

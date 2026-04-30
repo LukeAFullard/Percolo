@@ -32,7 +32,7 @@ export class EmbeddingPipeline {
     try {
       this.instance = await pipeline('feature-extraction', modelName, {
         dtype: precision as any, // Typecast for simplicity with the HF types
-        device: useWebGPU ? 'webgpu' : 'cpu',
+        device: useWebGPU ? 'webgpu' : 'wasm',
       });
       this.currentModel = modelName;
     } catch (error) {
