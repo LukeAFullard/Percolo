@@ -5,6 +5,7 @@ import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { CorpusAnalytics } from './components/CorpusAnalytics';
 import { TemporalTrends } from './components/TemporalTrends';
 import { EntityNetwork } from './components/EntityNetwork';
+import { AnomalyAnalytics } from './components/AnomalyAnalytics';
 import { TopicBarchart } from './components/TopicBarchart';
 import { TopicWordCloud } from './components/TopicWordCloud';
 import { SimilarityHeatmap } from './components/SimilarityHeatmap';
@@ -1290,6 +1291,16 @@ function App() {
                           <div className="mt-6 w-full">
                               <EntityNetwork
                                   data={results.reportData.corpusStats.entityNetworkData}
+                                  isDarkMode={isDarkMode}
+                              />
+                          </div>
+                      )}
+                      {results.reportData.corpusStats.anomalyData && results.reportData.corpusStats.anomalyData.length > 0 && (
+                          <div className="mt-6 w-full">
+                              <AnomalyAnalytics
+                                  data={results.reportData.corpusStats.anomalyData}
+                                  umapData={results.umap || []}
+                                  parentLabels={results.labels || []}
                                   isDarkMode={isDarkMode}
                               />
                           </div>
