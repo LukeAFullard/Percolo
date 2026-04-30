@@ -53,9 +53,12 @@ export const EntityNetwork: React.FC<EntityNetworkProps> = ({ data, isDarkMode }
   const nodeHover = nodes.map(n => `Entity: ${n.id}<br>Group: ${n.group}<br>Freq: ${n.value}`);
   const nodeColors = nodes.map(n => {
     switch (n.group) {
-      case 'PER': return '#f43f5e'; // rose-500
-      case 'ORG': return '#3b82f6'; // blue-500
-      case 'LOC': return '#10b981'; // emerald-500
+      case 'PER':
+      case 'DATE': return '#f43f5e'; // rose-500
+      case 'ORG':
+      case 'EMAIL': return '#3b82f6'; // blue-500
+      case 'LOC':
+      case 'MONEY': return '#10b981'; // emerald-500
       case 'MISC': return '#8b5cf6'; // violet-500
       default: return '#64748b'; // slate-500
     }

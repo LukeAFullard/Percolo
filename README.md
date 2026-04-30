@@ -20,7 +20,10 @@ Data never leaves your device.
 * **Cross-Lingual Topic Alignment**: Native integration of sequence-to-sequence translation models (e.g., NLLB-200) to map topics generated in mixed languages back to a single target language.
 * **Aspect-Based Sentiment Analysis (ABSA)**: Auto-extracts noun-phrases and scores the explicit sentiment targeting those phrases within the text, circumventing generic global document scores.
 * **N-Gram Representation**: Configurable n-gram range for c-TF-IDF extraction, mapping complex phrases seamlessly into CSR matrix logic.
-* **Interactive Visualizations**: Includes Plotly-powered Intertopic Distance Maps and Topic Term Bar Charts.
+* **Exploratory Text Data Analysis (ETDA)**: Interactive Corpus Analytics including Zipf's Law distributions, Document Length Token Histograms, and Corpus-Level Frequency distributions.
+* **Temporal Trend Intelligence**: Dynamic charting to plot average document sentiment and adversarial Toxicity scores (via `toxic-bert`) over chronological intervals, complete with standard-deviation volatility bands.
+* **Entity Co-occurrence Networks**: Visualizes the structural relationship between named entities (like Dates, Emails, Money, Organizations) extracted via `winkNLP`.
+* **Interactive Visualizations**: Includes Plotly-powered Intertopic Distance Maps, Topic Term Bar Charts, Heatmaps, and Document Distributions.
 * **Progressive Web App (PWA)**: Installable, offline-first execution via Service Workers and IndexedDB model caching.
 
 ## Project Structure

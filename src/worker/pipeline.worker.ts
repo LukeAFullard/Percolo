@@ -994,6 +994,20 @@ async function runPipeline(documents: string[], config?: any) {
     const topNodeIds = new Set(entityNetworkData.nodes.map(n => n.id));
     entityNetworkData.links = entityNetworkData.links.filter(l => topNodeIds.has(l.source) && topNodeIds.has(l.target));
 
+
+    let documentToxicity: number[] = [];
+    if (config?.runToxicity) {
+        ctx.postMessage({
+            type: 'PROGRESS',
+            payload: { phase: 'analytics', status: 'running', message: 'Running Toxicity & Bias Audit...' }
+        });
+
+        // Dynamically import to keep bundle small if not used
+        const { ToxicityEngine } = await import('../nlp/toxicity');
+        documentToxicity = await ToxicityEngine.analyzeBatch(processedDocuments);
+        await ToxicityEngine.dispose(); // Free memory
+    }
+
     // ETDA: Corpus Analytics
     // 1. Calculate Document Lengths
     const documentLengths = processedDocuments.map(doc => {
@@ -1015,6 +1029,7 @@ async function runPipeline(documents: string[], config?: any) {
             tokenFrequencies,
             documentLengths,
             documentSentiments,
+            documentToxicity,
             entityNetworkData
         },
 
