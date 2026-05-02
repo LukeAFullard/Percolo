@@ -37,12 +37,22 @@ Cross-Origin-Embedder-Policy: require-corp
 
 ### Deploying to Cloudflare Pages (Recommended)
 
-Cloudflare Pages makes header injection incredibly easy. The `ui/public/` folder already includes a `_headers` file specifically for Cloudflare:
+Cloudflare Pages makes deploying and header injection incredibly easy, making it the ideal host for this edge-native application. The `ui/public/` folder already includes a `_headers` file configured specifically for Cloudflare to enforce Cross-Origin Isolation.
 
-1. Connect your Git repository to Cloudflare Pages.
-2. Set the **Build Command** to: `npm install && npm install --prefix ui && npm run build && npm run build --prefix ui`
-3. Set the **Build Output Directory** to: `ui/dist`
-4. The `ui/public/_headers` file will automatically be copied to `ui/dist/_headers` and Cloudflare will serve the application with strict Cross-Origin Isolation.
+**Step-by-step Implementation:**
+
+1. **Push your code to GitHub/GitLab:** Ensure your latest codebase, including the `.github/workflows/cloudflare-pages.yml` file (if you are using GitHub Actions for deployment) or just the root directory, is pushed to your remote repository.
+2. **Log into Cloudflare:** Navigate to the Cloudflare dashboard and select **Workers & Pages** from the sidebar.
+3. **Create a new Project:** Click **Create application**, then switch to the **Pages** tab and click **Connect to Git**.
+4. **Select Repository:** Choose your Git provider and select the repository containing this project.
+5. **Configure the Build Settings:**
+   * **Framework preset:** None
+   * **Build Command:** `npm install && npm install --prefix ui && npm run build && npm run build --prefix ui`
+   * **Build Output Directory:** `ui/dist`
+6. **Save and Deploy:** Click **Save and Deploy**. Cloudflare will clone your repository, run the build command, and deploy the `ui/dist` folder to a globally distributed edge network.
+7. **Automatic Headers:** Because the build step copies `ui/public/_headers` into `ui/dist/_headers`, Cloudflare will automatically parse it and serve the necessary `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers, unlocking WASM multi-threading functionality on the deployed URL.
+
+*Note: The project also includes a GitHub Action workflow (`.github/workflows/cloudflare-pages.yml`). If you prefer to use GitHub Actions to build and deploy to Cloudflare rather than Cloudflare's native CI, you will need to add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` to your GitHub repository secrets.*
 
 ### Deploying to GitHub Pages
 
