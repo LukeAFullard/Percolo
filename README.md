@@ -63,6 +63,9 @@ npm run build
 npm run build --prefix ui
 ```
 
+### Deployment
+For full instructions on how to deploy this static site to platforms like Cloudflare Pages, GitHub Pages, or Netlify—including how to configure the mandatory COOP/COEP Cross-Origin headers for WASM multi-threading—see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Browser Constraints & Memory Hygiene
 
 Because the app runs entirely client-side, it implements a dynamic **Cap-and-Tier** scaling system to prevent browser Out-Of-Memory (OOM) crashes:
