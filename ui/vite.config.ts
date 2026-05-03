@@ -8,7 +8,16 @@ import path from 'path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@src': path.resolve(__dirname, '../src')
+      '@src': path.resolve(__dirname, '../src'),
+      stream: path.resolve(__dirname, 'node_modules/stream-browserify'),
+      zlib: path.resolve(__dirname, 'node_modules/browserify-zlib'),
+      util: path.resolve(__dirname, 'node_modules/util'),
+      buffer: path.resolve(__dirname, 'node_modules/buffer'),
+      assert: path.resolve(__dirname, 'node_modules/assert'),
+      events: path.resolve(__dirname, 'node_modules/events'),
+      path: path.resolve(__dirname, 'node_modules/path-browserify'),
+      url: path.resolve(__dirname, 'node_modules/url'),
+      os: path.resolve(__dirname, 'node_modules/os-browserify/browser')
     }
   },
   plugins: [

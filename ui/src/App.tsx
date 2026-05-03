@@ -662,7 +662,7 @@ function App() {
                   className="hidden"
                   ref={fileInputRef}
                   onChange={handleFileInput}
-                  accept=".txt,.md,.json,.csv,.xlsx,.xls,.pdf,.docx,.png,.jpg,.jpeg,.mp3,.wav,.ogg,.m4a"
+                  accept=".txt,.md,.json,.csv,.xlsx,.xls,.pdf,.docx,.eml,.msg,.png,.jpg,.jpeg,.mp3,.wav,.ogg,.m4a"
                 />
 
                 {isParsingFiles ? (
