@@ -7,6 +7,11 @@ import Tesseract from 'tesseract.js';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { pipeline } from '@huggingface/transformers';
+import PostalMime from 'postal-mime';
+import msgReaderModule from '@kenjiuno/msgreader';
+
+// @ts-ignore - Handle various module formats correctly
+const MsgReader = msgReaderModule.default?.default || msgReaderModule.default || msgReaderModule;
 
 export interface ParsedDocument {
   filename: string;
@@ -54,6 +59,10 @@ export class FileParser {
         return await this.parseXlsxFile(normalizedFile);
       } else if (filename.endsWith('.docx')) {
         return await this.parseDocxFile(normalizedFile);
+      } else if (filename.endsWith('.eml')) {
+        return await this.parseEmlFile(normalizedFile);
+      } else if (filename.endsWith('.msg')) {
+        return await this.parseMsgFile(normalizedFile);
       } else if (filename.endsWith('.mp3') || filename.endsWith('.wav') || filename.endsWith('.ogg') || filename.endsWith('.m4a')) {
         return await this.parseAudioFile(normalizedFile);
       } else if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
@@ -254,6 +263,64 @@ export class FileParser {
       return [{ filename: file.name, content: result.data.text.trim() }];
     } catch (error: any) {
        throw new Error(`OCR failed: ${error.message || error}`);
+    }
+  }
+
+  private static async parseEmlFile(file: { name: string; text?: () => Promise<string>; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+    let input: string | ArrayBuffer | undefined;
+    if (file.buffer) {
+        input = file.buffer;
+    } else if (file.text) {
+        input = await file.text();
+    } else {
+        throw new Error('No valid extraction method found for EML parsing');
+    }
+
+    try {
+        // @ts-ignore - postal-mime module has varying default exports depending on bundler
+        const PostalMimeClass = PostalMime.default || PostalMime;
+        const parser = new PostalMimeClass();
+        const email = await parser.parse(input as any);
+
+        const content = email.text || email.html || email.subject || '';
+        return [{
+            filename: file.name,
+            content: content.trim(),
+            metadata: {
+                subject: email.subject,
+                from: email.from,
+                to: email.to,
+                date: email.date
+            }
+        }];
+    } catch (error: any) {
+        throw new Error(`EML parsing failed: ${error.message || error}`);
+    }
+  }
+
+  private static async parseMsgFile(file: { name: string; buffer?: ArrayBuffer }): Promise<ParsedDocument[]> {
+    if (!file.buffer) {
+         throw new Error('MSG parsing requires an ArrayBuffer');
+    }
+
+    try {
+        const msgReader = new MsgReader(file.buffer);
+        const msgData = msgReader.getFileData();
+        const content = msgData.body || msgData.subject || '';
+
+        return [{
+            filename: file.name,
+            content: content.trim(),
+            metadata: {
+                subject: msgData.subject,
+                senderName: msgData.senderName,
+                senderEmail: msgData.senderEmail,
+                recipients: msgData.recipients,
+                creationTime: msgData.creationTime
+            }
+        }];
+    } catch (error: any) {
+        throw new Error(`MSG parsing failed: ${error.message || error}`);
     }
   }
 }
