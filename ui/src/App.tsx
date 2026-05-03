@@ -20,10 +20,11 @@ import { ReportGenerator } from '@src/io/report';
 import { PipelineCache } from '../../src/io/cache';
 import { Exporter } from '@src/io/exporter';
 import { Download, FileJson, FileSpreadsheet } from 'lucide-react';
+import { ContentGenerator } from './components/ContentGenerator';
 
 
 function App() {
-  const [activeTab, setActiveTab] = React.useState<'landing' | 'upload' | 'visualize' | 'analytics' | 'inference' | 'search' | 'settings'>('landing');
+  const [activeTab, setActiveTab] = React.useState<'landing' | 'upload' | 'visualize' | 'analytics' | 'inference' | 'search' | 'generation' | 'settings'>('landing');
   const [isLegalModalOpen, setIsLegalModalOpen] = React.useState(false);
   const [selectedTopic, setSelectedTopic] = React.useState<number | null>(null);
   const [selectedDocIndex, setSelectedDocIndex] = React.useState<number | null>(null);
@@ -618,6 +619,18 @@ function App() {
             Semantic Search
           </button>
 
+          <button
+            onClick={() => setActiveTab('generation')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+              activeTab === 'generation'
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            Generate Content
+          </button>
+
         </nav>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700">
@@ -1107,6 +1120,19 @@ function App() {
 
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'generation' && (
+          <div className="flex-1 p-8 overflow-y-auto bg-slate-50 dark:bg-slate-900">
+             <div className="max-w-6xl mx-auto h-[calc(100vh-8rem)]">
+                <ContentGenerator
+                  selectedTopic={selectedTopic}
+                  topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || []}
+                  topicDocs={selectedTopic !== null && results && results.labels ? docs.filter((_, i) => results.labels && results.labels[i] === (results.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic)) : []}
+                  orchestrator={null}
+                />
+              </div>
           </div>
         )}
 
