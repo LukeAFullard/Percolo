@@ -17,23 +17,34 @@ export class GdeltAPI {
     private static lastRequestTime = 0;
     private static readonly RATE_LIMIT_MS = 6000; // 6 seconds as requested
     private static callbackCounter = 0;
+    private static queuePromise: Promise<void> | null = null;
 
     /**
      * Fetches articles from the GDELT DOC 2.0 API using JSONP to bypass CORS.
      * Respects the 1 request per 5 seconds rate limit (padded to 6 seconds).
+     * Serializes concurrent requests using a promise queue.
      * @param query The search query string
      * @param maxRecords Maximum number of records to return (max 250)
      */
     static async fetchArticles(query: string, maxRecords: number = 75): Promise<GdeltArticle[]> {
-        // Enforce rate limit
-        const now = Date.now();
-        const timeSinceLastRequest = now - this.lastRequestTime;
-        if (timeSinceLastRequest < this.RATE_LIMIT_MS) {
-            const waitTime = this.RATE_LIMIT_MS - timeSinceLastRequest;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
+        // Enforce strict serialized rate limiting
+        const executeFetch = async (): Promise<void> => {
+            const now = Date.now();
+            const timeSinceLastRequest = now - this.lastRequestTime;
+            if (timeSinceLastRequest < this.RATE_LIMIT_MS) {
+                const waitTime = this.RATE_LIMIT_MS - timeSinceLastRequest;
+                await new Promise(resolve => setTimeout(resolve, waitTime + 500)); // strict padding
+            }
+            this.lastRequestTime = Date.now();
+        };
 
-        this.lastRequestTime = Date.now();
+        if (this.queuePromise) {
+             this.queuePromise = this.queuePromise.then(executeFetch).catch(executeFetch);
+        } else {
+             this.queuePromise = executeFetch();
+        }
+        await this.queuePromise;
+
         this.callbackCounter++;
         const callbackName = `gdeltCallback_${Date.now()}_${this.callbackCounter}`;
 
@@ -72,14 +83,15 @@ export class GdeltAPI {
                 if (script.parentNode) {
                     script.parentNode.removeChild(script);
                 }
-                delete // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window as any)[callbackName];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                try { delete (window as any)[callbackName]; } catch {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(window as any)[callbackName] = undefined; }
             };
 
             // Timeout after 15 seconds
             setTimeout(() => {
-                if (// eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window as any)[callbackName]) {
+                if (callbackName in window) {
                     cleanup();
                     reject(new Error("Request to GDELT API timed out."));
                 }

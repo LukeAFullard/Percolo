@@ -381,7 +381,7 @@ function App() {
       const articles = await GdeltAPI.fetchArticles(gdeltQuery.trim(), 75);
 
       if (articles.length === 0) {
-        setGdeltError('No articles found for that query.');
+        setGdeltError('No articles found or request was rate limited. Wait 6 seconds and try again.');
         return;
       }
 
@@ -391,6 +391,7 @@ function App() {
       }
 
       if (batchContent) {
+
          setInputText(prev => prev ? prev + '\n\n' + batchContent : batchContent);
          setGdeltSuccess(`Successfully imported ${articles.length} articles.`);
          setGdeltQuery('');
@@ -449,25 +450,13 @@ function App() {
     setActiveTab('visualize');
   };
 
-  // Mock data for initial render if no results yet
-  const mockUmap = [[-1.5, 2.1], [3.2, -0.5], [0.8, -2.4]];
-  const mockLabels = ["Topic 0: AI/ML", "Topic 1: Finance", "Topic 2: Weather"];
-  const mockSizes = [50, 45, 15];
-  const mockTopicWords = [
-      [{word: "AI", score: 0.8}, {word: "ML", score: 0.7}, {word: "model", score: 0.6}],
-      [{word: "stock", score: 0.9}, {word: "market", score: 0.8}, {word: "finance", score: 0.5}],
-      [{word: "weather", score: 0.7}, {word: "sunny", score: 0.6}, {word: "rain", score: 0.4}]
-  ];
-  const mockSimilarityMatrix = [
-      [1.0, 0.1, 0.05],
-      [0.1, 1.0, 0.2],
-      [0.05, 0.2, 1.0]
-  ];
-  const mockDocumentDistributions = [
-      [0.8, 0.1, 0.1], // Doc 0 leans heavily to Topic 0
-      [0.2, 0.7, 0.1],
-      [0.0, 0.2, 0.8]
-  ];
+
+
+
+
+
+
+
 
   // Transform array buffer labels into strings for plotting
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1475,7 +1464,17 @@ function App() {
                   )}
                 </div>
               )}
-              {activeTab === 'visualize' && (
+
+        {activeTab === 'visualize' && !results && (
+          <div className="flex-1 flex items-center justify-center">
+             <div className="p-8 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl border border-blue-200 dark:border-blue-800 text-center max-w-lg">
+                <h3 className="text-lg font-semibold mb-2">No Data Available</h3>
+                <p>Please load or run data in the Data Source tab before attempting to visualize topics.</p>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'visualize' && results && (
           <div className="flex-1 flex flex-col p-6 overflow-hidden bg-slate-50 dark:bg-slate-900/50">
             {isProcessing && progress ? (
               <div className="flex-1 flex flex-col items-center justify-center">
@@ -1496,12 +1495,12 @@ function App() {
                 <div className="lg:col-span-2 h-full flex flex-col gap-6 overflow-y-auto pr-2">
                   <div className="min-h-[400px]">
                       <IntertopicDistanceMap
-                        umapCoordinates={(results?.umap as number[][]) || (activeTab === "visualize" ? mockUmap : null)}
+                        umapCoordinates={(results?.umap as number[][]) || null}
                         umapCentroids={results?.umapCentroids}
                         documentLabels={(results?.labels as number[]) || []}
                         uniqueClasses={(results?.uniqueClasses as number[]) || []}
-                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
-                        topicSizes={(results?.topicSizes as number[]) || mockSizes}
+                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || []}
+                        topicSizes={(results?.topicSizes as number[]) || []}
                         hoverSummaries={(results?.hoverSummaries as string[])}
                         isDarkMode={isDarkMode}
                       />
@@ -1509,17 +1508,17 @@ function App() {
 
                   <div className="min-h-[400px]">
                       <SimilarityHeatmap
-                        similarityMatrix={results?.similarityMatrix || mockSimilarityMatrix}
-                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                        similarityMatrix={results?.similarityMatrix || []}
+                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || []}
                         isDarkMode={isDarkMode}
                       />
                   </div>
 
                   <div className="min-h-[400px]">
                       <TopicPieChart
-                        topicSizes={(results?.topicSizes as number[]) || mockSizes}
-                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
-                        uniqueClasses={(results?.uniqueClasses as number[]) || Array.from({length: mockLabels.length}, (_, i) => i)}
+                        topicSizes={(results?.topicSizes as number[]) || []}
+                        topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || []}
+                        uniqueClasses={(results?.uniqueClasses as number[]) || []}
                         isDarkMode={isDarkMode}
                       />
                   </div>
@@ -1536,12 +1535,12 @@ function App() {
                           </div>
                           {wordCloudMode ? (
                              <TopicWordCloud
-                                topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
+                                topicWords={results?.topicWords ? results.topicWords[selectedTopic] : []}
                                 topicId={results?.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic}
                              />
                           ) : (
                              <TopicBarchart
-                                topicWords={results?.topicWords ? results.topicWords[selectedTopic] : mockTopicWords[selectedTopic]}
+                                topicWords={results?.topicWords ? results.topicWords[selectedTopic] : []}
                                 topicId={results?.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic}
                                 color={`hsl(${((results?.uniqueClasses ? results.uniqueClasses[selectedTopic] : selectedTopic) * 137.508) % 360}, 70%, 50%)`}
                                 isDarkMode={isDarkMode}
@@ -1555,9 +1554,9 @@ function App() {
                               probabilities={
                                 results
                                   ? (results.documentDistributions ? results.documentDistributions[selectedDocIndex] : undefined)
-                                  : mockDocumentDistributions[selectedDocIndex % 3]
+                                  : undefined
                               }
-                              topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels}
+                              topicLabels={(results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || []}
                               isDarkMode={isDarkMode}
                           />
                       </div>
@@ -1644,7 +1643,7 @@ function App() {
                       </div>
                     </div>
                     <div className="space-y-3 overflow-y-auto flex-1 pr-1">
-                      {((results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || mockLabels).map((label: string, i: number) => (
+                      {((results?.topicLabels as string[]) || (processLabels(results?.labels) as string[]) || []).map((label: string, i: number) => (
                         <div
                            key={i}
                            onClick={() => setSelectedTopic(i)}
@@ -1655,7 +1654,7 @@ function App() {
                            }`}>
                           <div className="font-medium text-sm">{label}</div>
                           <div className="text-xs text-slate-500 mt-1">
-                            Size: {((results?.topicSizes as number[]) || mockSizes)[i]} documents
+                            Size: {((results?.topicSizes as number[]) || [])[i]} documents
                           </div>
                         </div>
                       ))}
