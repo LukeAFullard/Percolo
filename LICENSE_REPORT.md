@@ -14,11 +14,13 @@ This report details the licenses for all open-source packages (NPM dependencies)
 
 | Model Name | License | Source |
 |---|---|---|
-| `Xenova/Qwen1.5-0.5B-Chat` | **Apache-2.0** | Original Model (Qwen/Qwen1.5-0.5B-Chat) |
-| `huggingworld/Qwen3.5-0.8B-ONNX` | **Apache-2.0** | Original Model (Qwen/Qwen3.5-0.8B) |
+| `onnx-community/smollm2-360M-instruct` | **Apache-2.0** | Original Model (HuggingFaceTB/SmolLM2-360M-Instruct) |
+| `onnx-community/Qwen2.5-0.5B-Instruct` | **Apache-2.0** | Original Model (Qwen/Qwen2.5-0.5B-Instruct) |
+| `onnx-community/Qwen2.5-1.5B-Instruct` | **Apache-2.0** | Original Model (Qwen/Qwen2.5-1.5B-Instruct) |
+| `onnx-community/Llama-3.2-1B-Instruct` | **llama3.2** | Original Model (meta-llama/Llama-3.2-1B-Instruct) |
+| `onnx-community/Bonsai-1.7B-ONNX` | **Apache-2.0** | Original Model (Bonsai) |
 | `onnx-community/gemma-4-E2B-it-ONNX` | **Apache-2.0** | Original Model (google/gemma-4-2b-it) |
 | `onnx-community/Phi-4-mini-instruct-ONNX-MHA` | **MIT** | Original Model (microsoft/Phi-4-mini-instruct) |
-| `onnx-community/Bonsai-1.7B-ONNX` | **Apache-2.0** | Original Model (Bonsai) |
 | `Xenova/TinyLlama-1.1B-Chat-v1.0` | **Apache-2.0** | Original Model (TinyLlama/TinyLlama-1.1B-Chat-v1.0) |
 | `Xenova/bert-base-multilingual-uncased-sentiment` | **MIT** | Original Model (nlptown/bert-base-multilingual-uncased-sentiment) |
 | `Xenova/m2m100_418M` | **MIT** | Replacement for nllb-200 (Original Model facebook/m2m100_418M) |
