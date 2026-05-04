@@ -49,16 +49,38 @@ export class GdeltAPI {
         const callbackName = `gdeltCallback_${Date.now()}_${this.callbackCounter}`;
 
         return new Promise((resolve, reject) => {
+
             // Setup global callback
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window as any)[callbackName] = (data: GdeltResponse) => {
+            (window as any)[callbackName] = (data: any) => {
                 cleanup();
-                if (data && data.articles) {
+
+                // Log what GDELT actually returned for debugging
+                console.log(`[GDELT API Response]`, data);
+
+                if (!data) {
+                    reject(new Error("Received empty payload from GDELT API. Rate limit or internal API error."));
+                    return;
+                }
+
+                if (data.status === "error" || (typeof data === 'string' && data.toLowerCase().includes('error'))) {
+                    console.error("[GDELT API Error]", data);
+                    reject(new Error(`API Error: ${data.message || data.error || JSON.stringify(data)}`));
+                    return;
+                }
+
+                if (data.articles) {
                     resolve(data.articles);
+                } else if (Array.isArray(data)) {
+                    // Sometimes APIs return the array directly
+                    resolve(data);
                 } else {
+                    // Reached API successfully, but no articles field
+                    console.warn("[GDELT API Warn] Payload did not contain 'articles'.", data);
                     resolve([]); // Return empty array if no articles
                 }
             };
+
 
             // Inject script tag
             const script = document.createElement('script');
@@ -72,7 +94,8 @@ export class GdeltAPI {
 
             script.onerror = () => {
                 cleanup();
-                reject(new Error("Failed to load script from GDELT API."));
+                console.error("[GDELT API Script Error] Failed to load JSONP script, likely a network error or rate limit hard-block.");
+                reject(new Error("Failed to load script from GDELT API. Check network or rate limits."));
             };
 
             // Append to DOM to trigger request

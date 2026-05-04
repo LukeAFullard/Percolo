@@ -381,7 +381,7 @@ function App() {
       const articles = await GdeltAPI.fetchArticles(gdeltQuery.trim(), 75);
 
       if (articles.length === 0) {
-        setGdeltError('No articles found or request was rate limited. Wait 6 seconds and try again.');
+        setGdeltError('No articles found for that query.');
         return;
       }
 
