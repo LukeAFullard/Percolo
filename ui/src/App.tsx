@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import { usePercolo } from './hooks/usePercolo';
-import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap, Link } from 'lucide-react';
+import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap, Link, Globe } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
+import { GdeltAPI } from './io/gdelt';
 import { CorpusAnalytics } from './components/CorpusAnalytics';
 import { TemporalTrends } from './components/TemporalTrends';
 import { EntityNetwork } from './components/EntityNetwork';
@@ -85,6 +86,11 @@ function App() {
   const [inputUrl, setInputUrl] = React.useState('');
   const [isFetchingUrl, setIsFetchingUrl] = React.useState(false);
   const [fetchUrlError, setFetchUrlError] = React.useState('');
+
+  const [gdeltQuery, setGdeltQuery] = React.useState('');
+  const [isFetchingGdelt, setIsFetchingGdelt] = React.useState(false);
+  const [gdeltError, setGdeltError] = React.useState('');
+  const [gdeltSuccess, setGdeltSuccess] = React.useState('');
   const cancelParsingRef = useRef(false);
 
   const { runPipeline, runInference, runSearch, loadResults, isProcessing, progress, results, error } = usePercolo();
@@ -362,6 +368,43 @@ function App() {
     setParseProgress('');
   };
 
+
+
+  const handleFetchGdelt = async () => {
+    if (!gdeltQuery.trim()) return;
+
+    setIsFetchingGdelt(true);
+    setGdeltError('');
+    setGdeltSuccess('');
+
+    try {
+      const articles = await GdeltAPI.fetchArticles(gdeltQuery.trim(), 75);
+
+      if (articles.length === 0) {
+        setGdeltError('No articles found for that query.');
+        return;
+      }
+
+      let batchContent = '';
+      for (const article of articles) {
+          batchContent += (batchContent ? '\n\n' : '') + `${article.title} - ${article.url}`;
+      }
+
+      if (batchContent) {
+         setInputText(prev => prev ? prev + '\n\n' + batchContent : batchContent);
+         setGdeltSuccess(`Successfully imported ${articles.length} articles.`);
+         setGdeltQuery('');
+         // clear success message after 5 seconds
+         setTimeout(() => setGdeltSuccess(''), 5000);
+      }
+
+    } catch (err) {
+      console.error('Failed to fetch from GDELT:', err);
+      setGdeltError(`Failed to fetch: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsFetchingGdelt(false);
+    }
+  };
 
   const handleFetchUrl = async () => {
     if (!inputUrl.trim()) return;
@@ -781,6 +824,35 @@ function App() {
                   </button>
                 </div>
                 {fetchUrlError && <p className="text-sm text-red-500">{fetchUrlError}</p>}
+              </div>
+
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Search Global News (via GDELT API)</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Globe className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
+                      placeholder="e.g. climate change"
+                      value={gdeltQuery}
+                      onChange={(e) => setGdeltQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleFetchGdelt(); }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleFetchGdelt}
+                    disabled={isFetchingGdelt || !gdeltQuery.trim()}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center gap-2"
+                  >
+                    {isFetchingGdelt ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+                  </button>
+                </div>
+                {gdeltError && <p className="text-sm text-red-500">{gdeltError}</p>}
+                {gdeltSuccess && <p className="text-sm text-green-500">{gdeltSuccess}</p>}
               </div>
 
               <div>
