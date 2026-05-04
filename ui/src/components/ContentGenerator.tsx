@@ -19,7 +19,7 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   const [generatedText, setGeneratedText] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>('Xenova/Qwen1.5-0.5B-Chat');
+  const [selectedModel, setSelectedModel] = useState<string>('onnx-community/Qwen2.5-1.5B-Instruct');
   const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
 
   // Ref for cleanup
@@ -35,11 +35,13 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   ];
 
   const models = [
-    { id: 'Xenova/Qwen1.5-0.5B-Chat', label: 'Qwen 1.5 (0.5B) - Fast (Default)' },
-    { id: 'huggingworld/Qwen3.5-0.8B-ONNX', label: 'Qwen 3.5 (0.8B)' },
-    { id: 'onnx-community/Bonsai-1.7B-ONNX', label: 'Bonsai (1.7B)' },
-    { id: 'onnx-community/gemma-4-E2B-it-ONNX', label: 'Gemma 4 (2B) - Heavy' },
-    { id: 'onnx-community/Phi-4-mini-instruct-ONNX-MHA', label: 'Phi-4 Mini (3.8B) - Very Heavy' }
+    { id: 'onnx-community/smollm2-360M-instruct', label: 'SmolLM2 (360M) - Fastest / Low RAM' },
+    { id: 'onnx-community/Qwen2.5-0.5B-Instruct', label: 'Qwen 2.5 (0.5B) - Fast' },
+    { id: 'onnx-community/Qwen2.5-1.5B-Instruct', label: 'Qwen 2.5 (1.5B) - Balanced (Default)' },
+    { id: 'onnx-community/Llama-3.2-1B-Instruct', label: 'Llama 3.2 (1B) - Balanced Alt' },
+    { id: 'onnx-community/Bonsai-1.7B-ONNX', label: 'Bonsai (1.7B) - Quality' },
+    { id: 'onnx-community/gemma-4-E2B-it-ONNX', label: 'Gemma 3 (2B) - High Quality' },
+    { id: 'onnx-community/Phi-4-mini-instruct-ONNX-MHA', label: 'Phi-4 Mini (3.8B) - Very Heavy (8GB+ RAM)' }
   ];
 
   const handleGenerate = async () => {
