@@ -7,7 +7,7 @@ let currentModel: string | null = null;
 
 self.onmessage = async (e: MessageEvent) => {
     try {
-        const { text, format, model = 'Xenova/Qwen1.5-0.5B-Chat' } = e.data;
+        const { text, format, model = 'Xenova/Qwen1.5-0.5B-Chat', additionalInstructions } = e.data;
 
         if (!generator || currentModel !== model) {
             if (generator) {
@@ -34,36 +34,38 @@ self.onmessage = async (e: MessageEvent) => {
             });
         }
 
+        const extraPrompt = additionalInstructions ? `\n\nAdditional Instructions from user:\n${additionalInstructions}` : '';
+
         let messages: { role: string, content: string }[] = [];
         if (format === 'newsletter') {
             messages = [
                 { role: 'system', content: 'You are a helpful assistant that writes engaging newsletters.' },
-                { role: 'user', content: `Write an engaging email newsletter about the following topic using these reference texts:\n\n${text}` }
+                { role: 'user', content: `Write an engaging email newsletter about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         } else if (format === 'linkedin') {
             messages = [
                 { role: 'system', content: 'You are a helpful assistant that writes professional LinkedIn posts.' },
-                { role: 'user', content: `Write a professional LinkedIn post about the following topic, include hashtags, using these reference texts:\n\n${text}` }
+                { role: 'user', content: `Write a professional LinkedIn post about the following topic, include hashtags, using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         } else if (format === 'reddit') {
              messages = [
                 { role: 'system', content: 'You are a helpful assistant that writes engaging Reddit posts.' },
-                { role: 'user', content: `Write an engaging Reddit post about the following topic using these reference texts:\n\n${text}` }
+                { role: 'user', content: `Write an engaging Reddit post about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         } else if (format === 'twitter') {
              messages = [
                 { role: 'system', content: 'You are a helpful assistant that writes engaging Twitter threads.' },
-                { role: 'user', content: `Write a short, engaging Twitter thread about the following topic using these reference texts:\n\n${text}` }
+                { role: 'user', content: `Write a short, engaging Twitter thread about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         } else if (format === 'youtube') {
              messages = [
                 { role: 'system', content: 'You are a helpful assistant that writes YouTube video scripts.' },
-                { role: 'user', content: `Write a short YouTube video script about the following topic using these reference texts:\n\n${text}` }
+                { role: 'user', content: `Write a short YouTube video script about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         } else {
              messages = [
                 { role: 'system', content: 'You are a helpful assistant that summarizes text.' },
-                { role: 'user', content: `Summarize the following topic using these reference texts:\n\n${text}` }
+                { role: 'user', content: `Summarize the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         }
 

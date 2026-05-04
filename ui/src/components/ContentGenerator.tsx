@@ -20,6 +20,7 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('Xenova/Qwen1.5-0.5B-Chat');
+  const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
 
   // Ref for cleanup
   const workerRef = useRef<Worker | null>(null);
@@ -74,7 +75,7 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
         setIsGenerating(false);
       };
 
-      worker.postMessage({ text: contextDocs, format, model: selectedModel });
+      worker.postMessage({ text: contextDocs, format, model: selectedModel, additionalInstructions });
 
     } catch (e: any) {
       setGeneratedText('Error initializing generator: ' + e.message);
@@ -155,6 +156,18 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Additional Instructions (Optional)
+            </label>
+            <textarea
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              placeholder="E.g., Make it sound enthusiastic, focus on specific details, or include a call to action..."
+              className="w-full h-20 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+            />
         </div>
 
         <button
