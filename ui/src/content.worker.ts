@@ -42,25 +42,25 @@ self.onmessage = async (e: MessageEvent) => {
                 { role: 'system', content: 'You are a helpful assistant that writes engaging newsletters.' },
                 { role: 'user', content: `Write an engaging email newsletter about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
-        } else if (format === 'linkedin') {
+        } else if (format === 'professional') {
             messages = [
-                { role: 'system', content: 'You are a helpful assistant that writes professional LinkedIn posts.' },
-                { role: 'user', content: `Write a professional LinkedIn post about the following topic, include hashtags, using these reference texts:\n\n${text}${extraPrompt}` }
+                { role: 'system', content: 'You are a helpful assistant that writes professional networking posts.' },
+                { role: 'user', content: `Write a professional social media post about the following topic, include hashtags, using these reference texts:\n\n${text}${extraPrompt}` }
             ];
-        } else if (format === 'reddit') {
+        } else if (format === 'forum') {
              messages = [
-                { role: 'system', content: 'You are a helpful assistant that writes engaging Reddit posts.' },
-                { role: 'user', content: `Write an engaging Reddit post about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
+                { role: 'system', content: 'You are a helpful assistant that writes engaging community forum posts.' },
+                { role: 'user', content: `Write an engaging community discussion post about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
-        } else if (format === 'twitter') {
+        } else if (format === 'microblog') {
              messages = [
-                { role: 'system', content: 'You are a helpful assistant that writes engaging Twitter threads.' },
-                { role: 'user', content: `Write a short, engaging Twitter thread about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
+                { role: 'system', content: 'You are a helpful assistant that writes engaging microblog threads.' },
+                { role: 'user', content: `Write a short, engaging microblog thread about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
-        } else if (format === 'youtube') {
+        } else if (format === 'video') {
              messages = [
-                { role: 'system', content: 'You are a helpful assistant that writes YouTube video scripts.' },
-                { role: 'user', content: `Write a short YouTube video script about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
+                { role: 'system', content: 'You are a helpful assistant that writes video scripts.' },
+                { role: 'user', content: `Write a short video script about the following topic using these reference texts:\n\n${text}${extraPrompt}` }
             ];
         } else {
              messages = [

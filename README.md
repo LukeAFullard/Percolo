@@ -18,6 +18,7 @@ Data never leaves your device.
 * **Modular Generative Summarization**: Swap between ultra-light extractive summarization (TF-IDF) and WebGPU-powered Micro-LLMs (e.g., TinyLlama) for generative cluster summaries.
 * **Automated PII Redaction**: Automatically mask emails, phone numbers, URLs, and custom Regex patterns (like SSNs) via `winkNLP` before vectorization.
 * **Cross-Lingual Topic Alignment**: Native integration of sequence-to-sequence translation models (e.g., NLLB-200) to map topics generated in mixed languages back to a single target language.
+* **Generative Content Engine**: Turn topics into actionable content instantly. Run highly capable local LLMs (Qwen, Gemma, Phi-4, etc.) via WebGPU to draft newsletters, professional posts, microblog threads, and video scripts using cluster documents as contextual reference.
 * **Aspect-Based Sentiment Analysis (ABSA)**: Auto-extracts noun-phrases and scores the explicit sentiment targeting those phrases within the text, circumventing generic global document scores.
 * **N-Gram Representation**: Configurable n-gram range for c-TF-IDF extraction, mapping complex phrases seamlessly into CSR matrix logic.
 * **Exploratory Text Data Analysis (ETDA)**: Interactive Corpus Analytics including Zipf's Law distributions, Document Length Token Histograms, and Corpus-Level Frequency distributions.

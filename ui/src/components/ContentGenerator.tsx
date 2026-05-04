@@ -8,7 +8,7 @@ interface ContentGeneratorProps {
   orchestrator: any | null;
 }
 
-type Format = 'newsletter' | 'linkedin' | 'reddit' | 'twitter' | 'youtube' | 'summary';
+type Format = 'newsletter' | 'professional' | 'forum' | 'microblog' | 'video' | 'summary';
 
 export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   selectedTopic,
@@ -28,10 +28,10 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   const formats = [
     { id: 'summary', icon: <FileText className="w-4 h-4" />, label: 'Topic Summary' },
     { id: 'newsletter', icon: <Type className="w-4 h-4" />, label: 'Email Newsletter' },
-    { id: 'linkedin', icon: <Type className="w-4 h-4" />, label: 'LinkedIn Post' },
-    { id: 'reddit', icon: <Edit3 className="w-4 h-4" />, label: 'Reddit Post' },
-    { id: 'twitter', icon: <Type className="w-4 h-4" />, label: 'X (Twitter) Thread' },
-    { id: 'youtube', icon: <Type className="w-4 h-4" />, label: 'YouTube Script' },
+    { id: 'professional', icon: <Type className="w-4 h-4" />, label: 'Professional Post' },
+    { id: 'forum', icon: <Edit3 className="w-4 h-4" />, label: 'Forum Discussion Post' },
+    { id: 'microblog', icon: <Type className="w-4 h-4" />, label: 'Microblog Thread' },
+    { id: 'video', icon: <Type className="w-4 h-4" />, label: 'Video Script' },
   ];
 
   const models = [
