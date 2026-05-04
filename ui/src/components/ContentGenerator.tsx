@@ -21,6 +21,7 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   const [copied, setCopied] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('onnx-community/Qwen2.5-1.5B-Instruct');
   const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
+  const [downloadProgress, setDownloadProgress] = useState<{ file: string, progress: number } | null>(null);
 
   // Ref for cleanup
   const workerRef = useRef<Worker | null>(null);
@@ -64,12 +65,16 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
         if (e.data.status === 'complete') {
             setGeneratedText(e.data.result);
             setIsGenerating(false);
+            setDownloadProgress(null);
             // Do NOT terminate the worker here, we want to keep the model loaded in VRAM for subsequent requests
         } else if (e.data.status === 'error') {
             setGeneratedText(`Error generating content: ${e.data.error}`);
             setIsGenerating(false);
+            setDownloadProgress(null);
         } else if (e.data.status === 'loading') {
             // we can display a loading state if we want, currently it's covered by isGenerating
+        } else if (e.data.status === 'progress') {
+            setDownloadProgress({ file: e.data.file, progress: e.data.progress });
         }
       };
 
@@ -162,12 +167,17 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
         </div>
 
         <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Additional Instructions (Optional)
-            </label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Additional Instructions (Optional)
+              </label>
+              <span className={`text-xs ${additionalInstructions.length >= 500 ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
+                {additionalInstructions.length} / 500
+              </span>
+            </div>
             <textarea
               value={additionalInstructions}
-              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              onChange={(e) => setAdditionalInstructions(e.target.value.substring(0, 500))}
               placeholder="E.g., Make it sound enthusiastic, focus on specific details, or include a call to action..."
               className="w-full h-20 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
             />
@@ -208,7 +218,17 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
             {isGenerating ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
                 <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-                <p className="text-sm">Loading language model and generating content...</p>
+                <p className="text-sm">
+                    {downloadProgress
+                        ? `Downloading model files...`
+                        : 'Loading language model and generating content...'}
+                </p>
+                {downloadProgress && (
+                    <div className="w-full max-w-xs bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-4">
+                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.max(5, downloadProgress.progress)}%` }}></div>
+                        <p className="text-[10px] mt-1 text-center truncate">{downloadProgress.file}</p>
+                    </div>
+                )}
                 <p className="text-xs text-slate-500 max-w-xs text-center">This runs entirely in your browser using WebGPU and may take a moment.</p>
               </div>
             ) : generatedText ? (
