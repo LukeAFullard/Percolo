@@ -35,10 +35,11 @@ export const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   ];
 
   const models = [
-    { id: 'Xenova/Qwen1.5-0.5B-Chat', label: 'Qwen 1.5 (0.5B) - Fast' },
-    { id: 'Xenova/Qwen1.5-1.8B-Chat', label: 'Qwen 1.5 (1.8B) - Balanced' },
-    { id: 'Xenova/gemma-2b-it', label: 'Gemma (2B) - High Quality' },
-    { id: 'Xenova/Phi-3-mini-4k-instruct', label: 'Phi-3 Mini (3.8B) - Superior' }
+    { id: 'Xenova/Qwen1.5-0.5B-Chat', label: 'Qwen 1.5 (0.5B) - Fast (Default)' },
+    { id: 'huggingworld/Qwen3.5-0.8B-ONNX', label: 'Qwen 3.5 (0.8B)' },
+    { id: 'onnx-community/Bonsai-1.7B-ONNX', label: 'Bonsai (1.7B)' },
+    { id: 'onnx-community/gemma-4-E2B-it-ONNX', label: 'Gemma 4 (2B) - Heavy' },
+    { id: 'onnx-community/Phi-4-mini-instruct-ONNX-MHA', label: 'Phi-4 Mini (3.8B) - Very Heavy' }
   ];
 
   const handleGenerate = async () => {
