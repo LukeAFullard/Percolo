@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { usePercolo } from './hooks/usePercolo';
-import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap } from 'lucide-react';
+import { Upload, Settings, BarChart2, Activity, Play, FileText, Loader2, Zap, Link } from 'lucide-react';
 import { IntertopicDistanceMap } from './components/IntertopicDistanceMap';
 import { CorpusAnalytics } from './components/CorpusAnalytics';
 import { TemporalTrends } from './components/TemporalTrends';
@@ -82,6 +82,9 @@ function App() {
   const [isParsingFiles, setIsParsingFiles] = React.useState(false);
   const [parseProgress, setParseProgress] = React.useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [inputUrl, setInputUrl] = React.useState('');
+  const [isFetchingUrl, setIsFetchingUrl] = React.useState(false);
+  const [fetchUrlError, setFetchUrlError] = React.useState('');
   const cancelParsingRef = useRef(false);
 
   const { runPipeline, runInference, runSearch, loadResults, isProcessing, progress, results, error } = usePercolo();
@@ -357,6 +360,43 @@ function App() {
 
     setIsParsingFiles(false);
     setParseProgress('');
+  };
+
+
+  const handleFetchUrl = async () => {
+    if (!inputUrl.trim()) return;
+
+    setIsFetchingUrl(true);
+    setFetchUrlError('');
+
+    try {
+      const res = await fetch(inputUrl.trim());
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      let filename = 'downloaded_file';
+      try {
+          const urlObj = new URL(inputUrl.trim());
+          const pathname = urlObj.pathname;
+          if (pathname && pathname !== '/') {
+             filename = pathname.split('/').pop() || 'downloaded_file';
+          }
+      } catch {
+        // Ignored intentionally
+      }
+
+      const file = new File([blob], filename, { type: blob.type });
+
+      await processFiles([file]);
+      setInputUrl('');
+    } catch (err) {
+      console.error('Failed to fetch URL:', err);
+      setFetchUrlError(`Failed to fetch: ${(err as Error).message}`);
+    } finally {
+      setIsFetchingUrl(false);
+    }
   };
 
   const handleRun = () => {
@@ -713,6 +753,34 @@ function App() {
                     </div>
                   </>
                 )}
+              </div>
+
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Or import from URL (CORS compatible)</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Link className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <input
+                      type="url"
+                      className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
+                      placeholder="https://example.com/data.csv or .json"
+                      value={inputUrl}
+                      onChange={(e) => setInputUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleFetchUrl(); }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleFetchUrl}
+                    disabled={isFetchingUrl || !inputUrl.trim()}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center gap-2"
+                  >
+                    {isFetchingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Fetch'}
+                  </button>
+                </div>
+                {fetchUrlError && <p className="text-sm text-red-500">{fetchUrlError}</p>}
               </div>
 
               <div>
