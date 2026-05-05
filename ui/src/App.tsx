@@ -367,7 +367,7 @@ function App() {
 
       let batchContent = '';
       for (const article of articles) {
-          batchContent += (batchContent ? '\n\n' : '') + `${article.title}\nURL: ${article.url}`;
+          batchContent += (batchContent ? '\n\n' : '') + `${article.title}\n${article.context || ''}\nURL: ${article.url}`;
       }
 
       if (batchContent) {
