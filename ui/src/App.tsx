@@ -43,6 +43,7 @@ function App() {
     runABSA: false,
     runAnalytics: true,
     runToxicity: false,
+    runBiasAudit: false,
     runNER: false,
     useKeyBERT: false,
     customStopWords: '',
@@ -244,6 +245,7 @@ function App() {
       runABSA: settings.runABSA,
       runAnalytics: settings.runAnalytics,
       runToxicity: settings.runToxicity,
+      runBiasAudit: settings.runBiasAudit,
       runNER: settings.runNER,
       useKeyBERT: settings.useKeyBERT,
       customStopWords: customStopWordsList.length > 0 ? customStopWordsList : undefined,
@@ -1083,8 +1085,21 @@ function App() {
                         className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                       />
                       <div>
-                        <span className="block font-medium">Toxicity & Bias Audit</span>
+                        <span className="block font-medium">Toxicity Audit</span>
                         <span className="block text-sm text-slate-500">Runs an adversarial sequence classification model (toxic-bert) to audit dataset toxicity over time.</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start space-x-3 p-3 bg-white dark:bg-slate-800 rounded shadow-sm border border-slate-200 dark:border-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={settings.runBiasAudit}
+                        onChange={(e) => setSettings(prev => ({ ...prev, runBiasAudit: e.target.checked }))}
+                        className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="block font-medium">Political Bias Audit</span>
+                        <span className="block text-sm text-slate-500">Evaluates Left vs Right political leanings of documents using a Zero-Shot DistilBERT model.</span>
                       </div>
                     </label>
 
@@ -1434,12 +1449,14 @@ function App() {
                       />
                       {(
                         (results.reportData.corpusStats.documentSentiments && results.reportData.corpusStats.documentSentiments.length > 0) ||
-                        (results.reportData.corpusStats.documentToxicity && results.reportData.corpusStats.documentToxicity.length > 0)
+                      (results.reportData.corpusStats.documentToxicity && results.reportData.corpusStats.documentToxicity.length > 0) ||
+                      (results.reportData.corpusStats.documentBias && results.reportData.corpusStats.documentBias.length > 0)
                       ) && (
                           <div className="mt-6 w-full">
                               <TemporalTrends
                                   documentSentiments={results.reportData.corpusStats.documentSentiments}
                                   documentToxicity={results.reportData.corpusStats.documentToxicity}
+                                  documentBias={results.reportData.corpusStats.documentBias}
                                   isDarkMode={isDarkMode}
                               />
                           </div>

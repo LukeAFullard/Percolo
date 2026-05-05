@@ -999,13 +999,25 @@ async function runPipeline(documents: string[], config?: any) {
     if (config?.runToxicity) {
         ctx.postMessage({
             type: 'PROGRESS',
-            payload: { phase: 'analytics', status: 'running', message: 'Running Toxicity & Bias Audit...' }
+            payload: { phase: 'analytics', status: 'running', message: 'Running Toxicity Audit...' }
         });
 
         // Dynamically import to keep bundle small if not used
         const { ToxicityEngine } = await import('../nlp/toxicity');
         documentToxicity = await ToxicityEngine.analyzeBatch(processedDocuments);
         await ToxicityEngine.dispose(); // Free memory
+    }
+
+    let documentBias: number[] = [];
+    if (config?.runBiasAudit) {
+        ctx.postMessage({
+            type: 'PROGRESS',
+            payload: { phase: 'analytics', status: 'running', message: 'Running Political Bias Audit...' }
+        });
+
+        const { BiasEngine } = await import('../nlp/bias');
+        documentBias = await BiasEngine.analyzeBatch(processedDocuments);
+        await BiasEngine.dispose(); // Free memory
     }
 
     // ETDA: Corpus Analytics
@@ -1067,6 +1079,7 @@ async function runPipeline(documents: string[], config?: any) {
             documentLengths,
             documentSentiments,
             documentToxicity,
+            documentBias,
             entityNetworkData,
             anomalyData
         },

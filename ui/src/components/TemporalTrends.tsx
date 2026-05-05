@@ -11,6 +11,7 @@ const Plot = Plotly ? (createPlotlyComponent as (...args: unknown[]) => React.El
 interface TemporalTrendsProps {
   documentSentiments?: number[];
   documentToxicity?: number[];
+  documentBias?: number[];
   binCount?: number;
   isDarkMode?: boolean;
 }
@@ -18,18 +19,20 @@ interface TemporalTrendsProps {
 export const TemporalTrends: React.FC<TemporalTrendsProps> = ({
   documentSentiments,
   documentToxicity,
+  documentBias,
   binCount = 10,
   isDarkMode
 }) => {
   const hasSentiment = documentSentiments && documentSentiments.length > 0;
   const hasToxicity = documentToxicity && documentToxicity.length > 0;
+  const hasBias = documentBias && documentBias.length > 0;
 
-  if (!hasSentiment && !hasToxicity) {
-    return <div className="p-4 text-center text-slate-500">No temporal data available. Run analytics or toxicity audits to view temporal trends.</div>;
+  if (!hasSentiment && !hasToxicity && !hasBias) {
+    return <div className="p-4 text-center text-slate-500">No temporal data available. Run analytics or toxicity/bias audits to view temporal trends.</div>;
   }
 
   // Calculate actual bin count based on the largest dataset available
-  const dataLength = hasSentiment ? documentSentiments!.length : (documentToxicity ? documentToxicity.length : 0);
+  const dataLength = hasSentiment ? documentSentiments!.length : (hasToxicity ? documentToxicity!.length : (documentBias ? documentBias.length : 0));
   const actualBinCount = Math.min(binCount, dataLength);
   const binSize = Math.ceil(dataLength / actualBinCount);
 
@@ -122,11 +125,41 @@ export const TemporalTrends: React.FC<TemporalTrendsProps> = ({
       });
   }
 
+  if (hasBias) {
+      const { means, stdev } = processMetric(documentBias!);
+
+      const upper = means.map((m, i) => Math.min(1, m + stdev[i]));
+      const lower = means.map((m, i) => Math.max(-1, m - stdev[i]));
+
+      // Bias Trace
+      traces.push({
+          x: xData,
+          y: means,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: 'Political Bias (Mean)',
+          line: { shape: 'spline', color: 'rgba(168, 85, 247, 1)' }, // purple-500
+          marker: { size: 6 }
+      });
+
+      // Volatility Band (Bias)
+      traces.push({
+          x: [...xData, ...[...xData].reverse()],
+          y: [...upper, ...[...lower].reverse()],
+          fill: 'toself',
+          fillcolor: 'rgba(168, 85, 247, 0.1)', // purple-500 light
+          line: { color: 'transparent' },
+          name: 'Bias Volatility (±1 SD)',
+          showlegend: true,
+          type: 'scatter'
+      });
+  }
+
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Temporal Trends & Volatility</h3>
-        <p className="text-sm text-slate-500">Longitudinal analysis of document sentiment and toxicity</p>
+        <p className="text-sm text-slate-500">Longitudinal analysis of document sentiment, toxicity, and political bias</p>
       </div>
       <div className="flex-1 min-h-[400px] w-full p-2 relative">
         <Plot
