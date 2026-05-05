@@ -58,6 +58,7 @@ function App() {
     deduplicate: true
   });
   const [docs, setDocs] = React.useState<string[]>([]);
+  const [docMetadata, setDocMetadata] = React.useState<Record<string, string>[]>([]);
   const [inputText, setInputText] = React.useState('');
   const [isParsingFiles, setIsParsingFiles] = React.useState(false);
   const [parseProgress, setParseProgress] = React.useState('');
@@ -366,7 +367,7 @@ function App() {
 
       let batchContent = '';
       for (const article of articles) {
-          batchContent += (batchContent ? '\n\n' : '') + `${article.title} - ${article.url}`;
+          batchContent += (batchContent ? '\n\n' : '') + `${article.title}\nURL: ${article.url}`;
       }
 
       if (batchContent) {
@@ -423,9 +424,31 @@ function App() {
   };
 
   const handleRun = () => {
-    const documents = inputText.split('\n\n').filter(d => d.trim().length > 0);
-    setDocs(documents);
-    runPipeline(documents, buildPipelineConfig());
+    const rawDocuments = inputText.split('\n\n').filter(d => d.trim().length > 0);
+    const parsedDocs: string[] = [];
+    const parsedMetadata: Record<string, string>[] = [];
+
+    for (const doc of rawDocuments) {
+        // Look for URL: link at the end of the document
+        const lines = doc.split('\n');
+        const urlMatch = lines[lines.length - 1].match(/^URL:\s*(https?:\/\/[^\s]+)$/i);
+
+        if (urlMatch) {
+             const url = urlMatch[1];
+             const cleanDoc = lines.slice(0, lines.length - 1).join('\n').trim();
+             if (cleanDoc.length > 0) {
+                 parsedDocs.push(cleanDoc);
+                 parsedMetadata.push({ url: url });
+             }
+        } else {
+             parsedDocs.push(doc);
+             parsedMetadata.push({});
+        }
+    }
+
+    setDocs(parsedDocs);
+    setDocMetadata(parsedMetadata);
+    runPipeline(parsedDocs, buildPipelineConfig());
     setActiveTab('visualize');
   };
 
@@ -1655,6 +1678,13 @@ function App() {
                                   : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                            }`}>
                           <div className="text-sm text-slate-700 dark:text-slate-300 line-clamp-3">{doc}</div>
+                          {docMetadata[i] && docMetadata[i].url && (
+                              <div className="mt-2 text-xs">
+                                  <a href={docMetadata[i].url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline break-all">
+                                      {docMetadata[i].url}
+                                  </a>
+                              </div>
+                          )}
                           {results && results.labels && (
                               <div className="text-xs text-slate-500 mt-2 font-medium">
                                 Assigned Topic: {results.labels[i]}
