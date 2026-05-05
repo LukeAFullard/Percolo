@@ -1,6 +1,7 @@
 export interface GdeltArticle {
     url: string;
-    url_mobile: string;
+    url_mobile?: string;
+    context?: string;
     title: string;
     seendate: string;
     socialimage: string;
@@ -87,7 +88,7 @@ export class GdeltAPI {
 
             // Build URL
             const encodedQuery = encodeURIComponent(`"${query}"`);
-            const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodedQuery}&mode=artlist&format=jsonp&callback=${callbackName}&maxrecords=${Math.min(maxRecords, 250)}`;
+            const url = `https://api.gdeltproject.org/api/v2/context/context?query=${encodedQuery}&format=jsonp&callback=${callbackName}&maxrecords=${Math.min(maxRecords, 250)}`;
 
             script.src = url;
             script.async = true;
